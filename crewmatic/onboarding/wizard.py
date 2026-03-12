@@ -11,6 +11,7 @@ from typing import Callable
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
+from ..integrations import list_integrations, match_integrations_from_description
 from ..llm import LLMRunner
 from .channel_manager import ChannelManager
 from .crew_generator import generate_crew_yaml, save_crew_yaml
@@ -28,6 +29,7 @@ class SetupState(enum.Enum):
 
     AWAITING_BUSINESS = "awaiting_business"
     AWAITING_DETAILS = "awaiting_details"
+    AWAITING_INTEGRATIONS = "awaiting_integrations"
     AWAITING_CONFIRMATION = "awaiting_confirmation"
     CREATING = "creating"
     COMPLETE = "complete"
@@ -42,6 +44,7 @@ class SetupSession:
     business_description: str = ""
     tech_details: str = ""
     uploaded_docs: list[str] = field(default_factory=list)
+    selected_integrations: list[str] = field(default_factory=list)
     proposed_yaml: str = ""
     proposed_config: dict | None = None
     created_channels: list[str] = field(default_factory=list)
@@ -213,6 +216,15 @@ class SetupWizard:
         elif session.state == SetupState.AWAITING_DETAILS:
             self._handle_details(session, text, channel_id, thread_ts, say)
 
+        elif session.state == SetupState.AWAITING_INTEGRATIONS:
+            # Text messages during integration selection are ignored;
+            # the user interacts via Block Kit buttons/checkboxes.
+            say(
+                text="Please use the checkboxes above to select integrations, then click *Continue* (or *Skip*).",
+                channel=channel_id,
+                thread_ts=thread_ts,
+            )
+
         elif session.state == SetupState.AWAITING_CONFIRMATION:
             self._handle_confirmation_text(session, text, channel_id, thread_ts, say)
 
@@ -282,9 +294,18 @@ class SetupWizard:
         thread_ts: str,
         say: Callable,
     ):
-        """AWAITING_DETAILS -> generate crew.yaml, show proposal."""
+        """AWAITING_DETAILS -> show integration selection step."""
         session.tech_details = text
+        self._show_integrations(session, channel_id, thread_ts, say)
 
+    def _generate_and_show_proposal(
+        self,
+        session: SetupSession,
+        channel_id: str,
+        thread_ts: str,
+        say: Callable,
+    ):
+        """Generate crew.yaml from session context and show proposal."""
         say(
             text="Thanks! Generating your AI team configuration...",
             channel=channel_id,
@@ -296,6 +317,7 @@ class SetupWizard:
                 llm_call_fn=self._llm_call,
                 business_desc=session.business_description,
                 tech_details=session.tech_details,
+                integrations=session.selected_integrations or None,
             )
         except Exception as exc:
             logger.error(f"Crew generation failed: {exc}")
@@ -320,6 +342,91 @@ class SetupWizard:
         session.state = SetupState.AWAITING_CONFIRMATION
 
         self._show_proposal(channel_id, thread_ts, session, say)
+
+    # ------------------------------------------------------------------
+    # Integration selection
+    # ------------------------------------------------------------------
+
+    def _show_integrations(
+        self,
+        session: SetupSession,
+        channel_id: str,
+        thread_ts: str,
+        say: Callable,
+    ):
+        """Show available integrations as Block Kit checkboxes."""
+        session.state = SetupState.AWAITING_INTEGRATIONS
+
+        all_integrations = list_integrations()
+        suggested = match_integrations_from_description(session.business_description)
+
+        if not all_integrations:
+            # No integrations available — skip straight to crew generation
+            self._generate_and_show_proposal(session, channel_id, thread_ts, say)
+            return
+
+        options = []
+        initial_options = []
+        for name in sorted(all_integrations):
+            option = {
+                "text": {"type": "plain_text", "text": name},
+                "value": name,
+            }
+            options.append(option)
+            if name in suggested:
+                initial_options.append(option)
+
+        blocks: list[dict] = [
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": "Select integrations"},
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": (
+                        "I auto-detected some integrations based on your description. "
+                        "Check the ones you want your AI team to use:"
+                    ),
+                },
+            },
+            {
+                "type": "actions",
+                "block_id": "integration_checkboxes_block",
+                "elements": [
+                    {
+                        "type": "checkboxes",
+                        "action_id": "integration_checkboxes",
+                        "options": options,
+                        **({"initial_options": initial_options} if initial_options else {}),
+                    },
+                ],
+            },
+            {
+                "type": "actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Continue"},
+                        "style": "primary",
+                        "action_id": "setup_integrations_confirm",
+                    },
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Skip"},
+                        "action_id": "setup_skip_integrations",
+                    },
+                ],
+            },
+        ]
+
+        say(
+            text="Select the integrations you want your AI team to use:",
+            blocks=blocks,
+            channel=channel_id,
+            thread_ts=thread_ts,
+        )
 
     def _handle_confirmation_text(
         self,
@@ -378,6 +485,7 @@ class SetupWizard:
                 llm_call_fn=self._llm_call,
                 business_desc=session.business_description,
                 tech_details=combined_details,
+                integrations=session.selected_integrations or None,
             )
         except Exception as exc:
             logger.error(f"Modification generation failed: {exc}")
@@ -655,6 +763,62 @@ class SetupWizard:
                 self.app.client.chat_postMessage(**kwargs)
 
             self._handle_restart(session, channel_id, thread_ts, _say)
+
+        @self.app.action("integration_checkboxes")
+        def handle_integration_checkboxes(ack, body):
+            # Just acknowledge — selections are read on confirm
+            ack()
+
+        @self.app.action("setup_integrations_confirm")
+        def handle_integrations_confirm(ack, body):
+            ack()
+            user_id = body["user"]["id"]
+            channel_id = body["channel"]["id"]
+            thread_ts = body.get("message", {}).get("ts", "")
+
+            session = self.sessions.get(user_id)
+            if not session or session.state != SetupState.AWAITING_INTEGRATIONS:
+                return
+
+            # Read selected checkboxes from the block state
+            selected = []
+            block_state = body.get("state", {}).get("values", {})
+            cb_block = block_state.get("integration_checkboxes_block", {})
+            cb_action = cb_block.get("integration_checkboxes", {})
+            for opt in cb_action.get("selected_options", []):
+                selected.append(opt["value"])
+
+            session.selected_integrations = selected
+
+            def _say(**kwargs):
+                self.app.client.chat_postMessage(**kwargs)
+
+            if selected:
+                _say(
+                    text=f"Great, enabling integrations: {', '.join(selected)}",
+                    channel=channel_id,
+                    thread_ts=thread_ts,
+                )
+
+            self._generate_and_show_proposal(session, channel_id, thread_ts, _say)
+
+        @self.app.action("setup_skip_integrations")
+        def handle_skip_integrations(ack, body):
+            ack()
+            user_id = body["user"]["id"]
+            channel_id = body["channel"]["id"]
+            thread_ts = body.get("message", {}).get("ts", "")
+
+            session = self.sessions.get(user_id)
+            if not session or session.state != SetupState.AWAITING_INTEGRATIONS:
+                return
+
+            session.selected_integrations = []
+
+            def _say(**kwargs):
+                self.app.client.chat_postMessage(**kwargs)
+
+            self._generate_and_show_proposal(session, channel_id, thread_ts, _say)
 
     # ------------------------------------------------------------------
     # Entry point

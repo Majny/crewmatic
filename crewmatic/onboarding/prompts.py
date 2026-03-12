@@ -73,6 +73,20 @@ Output ONLY valid YAML (no markdown fences, no explanation). Follow these rules 
        context: |
          <brief project context>
 
+7. If the user selected integrations, include them in the config:
+   integrations:
+     - gmail
+     - github
+
+   Auto-assign integrations to agents based on their role:
+   - Leaders/managers get: gmail, google-calendar (if enabled)
+   - Marketing/sales workers get: gmail, hubspot, notion (if enabled)
+   - Technical workers get: github, linear (if enabled)
+   - Override with per-agent integrations: [list] when appropriate
+
+   Available integrations: {available_integrations}
+   User selected: {selected_integrations}
+
 Output ONLY the YAML. No commentary, no fences."""
 
 ADD_AGENT_PROMPT = """\

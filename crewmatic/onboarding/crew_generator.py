@@ -19,6 +19,7 @@ def generate_crew_yaml(
     llm_call_fn: LLMCallFn,
     business_desc: str,
     tech_details: str,
+    integrations: list[str] | None = None,
 ) -> tuple[str, dict]:
     """Generate a complete crew.yaml from business context.
 
@@ -26,15 +27,23 @@ def generate_crew_yaml(
         llm_call_fn: ``(system_prompt, user_message) -> response_text``.
         business_desc: Free-form business description from the user.
         tech_details: Follow-up answers about tech stack, roles, etc.
+        integrations: Optional list of integration names the user selected.
 
     Returns:
         A tuple of ``(raw_yaml_string, parsed_config_dict)``.
         On validation failure after retry the dict will contain an
         ``"_error"`` key with the error message.
     """
+    from ..integrations import list_integrations
+
+    available = ", ".join(sorted(list_integrations())) or "none"
+    selected = ", ".join(integrations) if integrations else "none"
+
     prompt = CREW_GENERATION_PROMPT.format(
         business_description=business_desc,
         tech_details=tech_details,
+        available_integrations=available,
+        selected_integrations=selected,
     )
 
     raw_yaml = llm_call_fn(
