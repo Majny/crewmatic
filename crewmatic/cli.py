@@ -131,6 +131,58 @@ def cmd_init(args):
     return 0
 
 
+def cmd_setup(args):
+    """Start Slack-based setup wizard."""
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    config_dir = os.getcwd()
+    if args.config:
+        config_dir = os.path.dirname(os.path.abspath(args.config))
+
+    # Determine LLM runner
+    from .claude_runner import ClaudeRunner
+    llm = ClaudeRunner(max_concurrent=1, timeout=120)
+
+    from .onboarding import SetupWizard
+    from slack_bolt import App
+
+    bot_token = os.environ.get("SLACK_BOT_TOKEN", "")
+    app_token = os.environ.get("SLACK_APP_TOKEN", "")
+    owner_id = os.environ.get("OWNER_SLACK_ID", "")
+
+    if not bot_token or not app_token:
+        print("Error: SLACK_BOT_TOKEN and SLACK_APP_TOKEN must be set.")
+        print("Run: crewmatic doctor")
+        return 1
+
+    app = App(token=bot_token)
+
+    def on_complete(config_path):
+        print(f"\nSetup complete! Config saved to {config_path}")
+        print("Starting your AI team...")
+        from .bot import CrewmaticBot
+        bot = CrewmaticBot(config_path=config_path)
+        bot.start()
+
+    wizard = SetupWizard(
+        app=app,
+        app_token=app_token,
+        config_dir=config_dir,
+        llm_runner=llm,
+        owner_slack_id=owner_id,
+        on_complete=on_complete,
+    )
+    wizard.start()
+    return 0
+
+
 def cmd_run(args):
     """Start the bot."""
     logging.basicConfig(
@@ -138,9 +190,15 @@ def cmd_run(args):
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    from .bot import CrewmaticBot
-    bot = CrewmaticBot(config_path=args.config)
-    bot.start()
+    try:
+        from .bot import CrewmaticBot
+        bot = CrewmaticBot(config_path=args.config)
+        bot.start()
+    except FileNotFoundError:
+        print("No crew.yaml found. Starting setup wizard...")
+        print("(You can also run: crewmatic init  for manual YAML setup)")
+        print()
+        return cmd_setup(args)
     return 0
 
 
@@ -307,6 +365,11 @@ def main():
     init_parser = subparsers.add_parser("init", help="Create a new crew.yaml scaffold")
     init_parser.add_argument("--force", action="store_true", help="Overwrite existing crew.yaml")
 
+    # setup
+    setup_parser = subparsers.add_parser("setup", help="Interactive Slack-based team setup")
+    setup_parser.add_argument("-c", "--config", help="Path to output crew.yaml")
+    setup_parser.add_argument("-v", "--verbose", action="store_true")
+
     # run
     run_parser = subparsers.add_parser("run", help="Start the bot")
     run_parser.add_argument("-c", "--config", help="Path to crew.yaml")
@@ -341,6 +404,7 @@ def main():
 
     commands = {
         "init": cmd_init,
+        "setup": cmd_setup,
         "run": cmd_run,
         "local": cmd_local,
         "validate": cmd_validate,
