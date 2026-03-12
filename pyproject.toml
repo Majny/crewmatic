@@ -30,6 +30,12 @@ dependencies = [
     "pyyaml>=6.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4.0",
+]
+
 [project.scripts]
 crewmatic = "crewmatic.cli:main"
 
@@ -37,3 +43,11 @@ crewmatic = "crewmatic.cli:main"
 Homepage = "https://github.com/Majny/crewmatic"
 Repository = "https://github.com/Majny/crewmatic"
 Issues = "https://github.com/Majny/crewmatic/issues"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
