@@ -120,6 +120,9 @@ Message any agent channel or mention the bot:
 | `start <project>` | Activate a project |
 | `stop` | Stop current project |
 | `status` | Show project status |
+| `run <workflow>: desc` | Start a workflow pipeline |
+| `workflows` | List available workflows |
+| `workflow status` | Show active runs |
 | `help` | List commands |
 
 ## Advanced: Manual Configuration

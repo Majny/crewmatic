@@ -24,6 +24,7 @@ from .integrations import resolve_integrations_for_agent, build_mcp_config_for_i
 from .project_manager import ProjectManager
 from .scheduler import Scheduler
 from .task_manager import TaskManager
+from .workflows import WorkflowEngine
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +110,14 @@ class CrewmaticBot:
             reset_after=self.settings.get("circuit_reset_minutes", 10) * 60,
         )
         self.guardrails = ExecutionGuard(cb, agent_names=set(self.agents.keys()))
+
+        # Workflow engine
+        self.workflow_engine = WorkflowEngine(
+            config=self.config,
+            call_agent_fn=self.call_agent,
+            post_fn=self.post_to_channel,
+            task_manager=self.task_manager,
+        )
 
         # Scheduler
         self.scheduler = Scheduler(
@@ -427,6 +436,43 @@ class CrewmaticBot:
         if text_lower == "projects":
             return self.project_manager.list_projects()
 
+        if text_lower.startswith("run "):
+            # Parse "run feature-dev: description here"
+            parts = text[4:].split(":", 1)
+            if len(parts) == 2:
+                workflow_name = parts[0].strip()
+                description = parts[1].strip()
+                if workflow_name in self.workflow_engine.load_workflows():
+                    threading.Thread(
+                        target=self.workflow_engine.run_workflow,
+                        args=(workflow_name, description),
+                        daemon=True,
+                    ).start()
+                    return f"Started workflow `{workflow_name}` — I'll post progress updates."
+                return f"Unknown workflow: {workflow_name}. Use `workflows` to see available ones."
+            return "Usage: run <workflow-name>: description"
+
+        if text_lower == "workflows":
+            workflows = self.workflow_engine.load_workflows()
+            if not workflows:
+                return "No workflows defined. Add a `workflows:` section to crew.yaml."
+            lines = []
+            for name, steps in workflows.items():
+                step_names = " → ".join(s.id for s in steps)
+                lines.append(f"  *{name}*: {step_names}")
+            return "Available workflows:\n" + "\n".join(lines)
+
+        if text_lower == "workflow status":
+            runs = self.workflow_engine.get_active_runs()
+            if not runs:
+                return "No active workflow runs."
+            lines = []
+            for run in runs:
+                passed = sum(1 for r in run.step_results.values() if r.status == "passed")
+                total = len(run.steps)
+                lines.append(f"  *{run.workflow_name}* — {passed}/{total} steps complete ({run.status})")
+            return "Active workflows:\n" + "\n".join(lines)
+
         if text_lower == "help":
             return (
                 "Available commands:\n"
@@ -439,6 +485,9 @@ class CrewmaticBot:
                 "  stop — Stop current project\n"
                 "  status — Show current project status\n"
                 "  projects — List available projects\n"
+                "  run <workflow>: desc — Start a workflow pipeline\n"
+                "  workflows — List available workflows\n"
+                "  workflow status — Show active workflow runs\n"
                 "  add agent / hire — Add a new agent\n"
                 "  help — Show this help"
             )

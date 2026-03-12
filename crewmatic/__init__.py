@@ -18,6 +18,9 @@ def __getattr__(name):
     if name == "ClaudeRunner":
         from .claude_runner import ClaudeRunner
         return ClaudeRunner
+    if name == "WorkflowEngine":
+        from .workflows import WorkflowEngine
+        return WorkflowEngine
     raise AttributeError(f"module 'crewmatic' has no attribute {name!r}")
 
 
@@ -32,4 +35,5 @@ __all__ = [
     "parse_delegations",
     "ProjectManager",
     "TaskManager",
+    "WorkflowEngine",
 ]
