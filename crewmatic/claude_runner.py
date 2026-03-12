@@ -6,23 +6,9 @@ import os
 import subprocess
 import threading
 
+from .llm import CrewmaticError, LLMTimeoutError, LLMCLIError, LLMNotFoundError  # noqa: F401
+
 logger = logging.getLogger(__name__)
-
-
-class CrewmaticError(Exception):
-    """Base exception for crewmatic errors."""
-
-
-class LLMTimeoutError(CrewmaticError):
-    """LLM call timed out."""
-
-
-class LLMCLIError(CrewmaticError):
-    """Claude CLI returned a non-zero exit code."""
-
-
-class LLMNotFoundError(CrewmaticError):
-    """Claude CLI binary not found."""
 
 
 class ClaudeRunner:
