@@ -34,6 +34,7 @@ class ClaudeRunner:
         allowed_tools: str | None = None,
         cwd: str | None = None,
         env_overrides: dict | None = None,
+        mcp_config: str | None = None,
     ) -> str:
         """Execute Claude CLI and return response.
 
@@ -72,6 +73,9 @@ class ClaudeRunner:
             "--model", model,
             "--no-session-persistence",
         ]
+
+        if mcp_config:
+            cmd.extend(["--mcp-config", mcp_config])
 
         if allowed_tools:
             cmd.extend(["--allowedTools", allowed_tools])

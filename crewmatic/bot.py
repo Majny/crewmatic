@@ -1,8 +1,10 @@
 """Crewmatic Slack bot — core orchestration engine."""
 
+import json
 import logging
 import os
 import re
+import tempfile
 import threading
 import time
 from datetime import datetime
@@ -199,6 +201,46 @@ class CrewmaticBot:
 
         return None, None
 
+    def _build_mcp_config(self, agent: AgentConfig) -> str | None:
+        """Generate a temporary MCP config JSON for an agent.
+
+        Returns path to the temp file, or None if the agent has no MCP servers.
+        """
+        if not agent.mcp_servers:
+            return None
+
+        global_mcp = self.config.get("mcp_servers", {})
+        if not global_mcp:
+            return None
+
+        servers = {}
+        for server_name in agent.mcp_servers:
+            server_def = global_mcp.get(server_name)
+            if not server_def:
+                logger.warning(f"Agent {agent.name} references unknown MCP server: {server_name}")
+                continue
+            servers[server_name] = {
+                "command": server_def["command"],
+                "args": server_def.get("args", []),
+            }
+            if server_def.get("env"):
+                servers[server_name]["env"] = server_def["env"]
+
+        if not servers:
+            return None
+
+        mcp_config = {"mcpServers": servers}
+
+        # Write to a persistent temp file (cleaned up on process exit)
+        config_dir = os.path.join(self.config["data_dir"], "mcp_configs")
+        os.makedirs(config_dir, exist_ok=True)
+        config_path = os.path.join(config_dir, f"{agent.name}.json")
+
+        with open(config_path, "w") as f:
+            json.dump(mcp_config, f, indent=2)
+
+        return config_path
+
     def call_agent(self, agent_name: str, message: str, context: str = "") -> str:
         """Call a specific agent with full context injection."""
         agent = self.agents.get(agent_name)
@@ -243,6 +285,9 @@ class CrewmaticBot:
             env_overrides["GIT_AUTHOR_EMAIL"] = git_config["author_email"]
             env_overrides["GIT_COMMITTER_EMAIL"] = git_config["author_email"]
 
+        # MCP server config for this agent
+        mcp_config = self._build_mcp_config(agent)
+
         return self.claude.call(
             system_prompt=agent.system_prompt,
             user_message=full_prompt,
@@ -250,6 +295,7 @@ class CrewmaticBot:
             allowed_tools=agent.tools,
             cwd=cwd,
             env_overrides=env_overrides if env_overrides else None,
+            mcp_config=mcp_config,
         )
 
     def _handle_delegations(self, source_agent: str, response: str):
@@ -579,6 +625,7 @@ class CrewmaticBot:
             delegates_to=raw_agent.get("delegates_to", []),
             reports_to=raw_agent.get("reports_to"),
             receives_context=raw_agent.get("receives_context", _default_context_for_role(role)),
+            mcp_servers=raw_agent.get("mcp_servers", []),
         )
         is_new = name not in self.agents
         self.agents[name] = agent

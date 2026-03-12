@@ -152,6 +152,19 @@ def validate_config(config: dict) -> list[str]:
         if reports_to and reports_to not in agents:
             errors.append(f"Agent '{name}' reports to unknown agent '{reports_to}'")
 
+        # Validate MCP server references
+        mcp_servers = config.get("mcp_servers", {})
+        for server_name in agent.get("mcp_servers", []):
+            if server_name not in mcp_servers:
+                errors.append(f"Agent '{name}' references unknown MCP server '{server_name}'")
+
+    # Validate MCP server definitions
+    for server_name, server_def in config.get("mcp_servers", {}).items():
+        if not isinstance(server_def, dict):
+            errors.append(f"MCP server '{server_name}' must be a mapping")
+        elif "command" not in server_def:
+            errors.append(f"MCP server '{server_name}' missing 'command'")
+
     if leader_count == 0:
         logger.warning("No agent has role 'leader'. Planning and report loops won't run.")
     if leader_count > 1:

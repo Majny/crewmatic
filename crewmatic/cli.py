@@ -95,6 +95,21 @@ agents:
       - Find and reach potential customers
       - Report findings after completing a task
 
+# MCP servers (optional — give agents access to external services)
+# Install with: pip install crewmatic[docs]
+# See: https://github.com/modelcontextprotocol/servers
+mcp_servers: {}
+  # gmail:
+  #   command: "npx"
+  #   args: ["-y", "@anthropic/mcp-server-gmail"]
+  #   env:
+  #     GMAIL_OAUTH_CREDENTIALS: "${GMAIL_OAUTH_CREDENTIALS}"
+  # github:
+  #   command: "npx"
+  #   args: ["-y", "@modelcontextprotocol/server-github"]
+  #   env:
+  #     GITHUB_TOKEN: "${GITHUB_TOKEN}"
+
 # Projects (optional — for multi-project teams)
 projects:
   my-project:
