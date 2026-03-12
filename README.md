@@ -55,6 +55,14 @@ export OWNER_SLACK_ID="U01234567"
 
 Create Slack channels matching your agent config (e.g., `#lead`, `#developer`, `#marketer`).
 
+Check your setup:
+
+```bash
+crewmatic doctor          # validates prerequisites
+```
+
+Then start:
+
 ```bash
 crewmatic run
 ```
@@ -128,6 +136,7 @@ projects:
 | `planning_threshold` | 3 | Plan more work when open tasks < this |
 | `report_hours` | [9, 16, 22] | Hours to send scheduled reports |
 | `stuck_timeout_minutes` | 10 | Reset stuck tasks after this |
+| `skip_permissions` | true | Pass `--dangerously-skip-permissions` to Claude CLI |
 
 ## CLI commands
 
@@ -139,6 +148,7 @@ crewmatic validate          # Check crew.yaml without starting
 crewmatic agents            # List configured agents
 crewmatic tasks             # Show task board
 crewmatic tasks --all       # Include completed tasks
+crewmatic doctor            # Check prerequisites
 ```
 
 ## Slack commands
@@ -173,6 +183,25 @@ See `examples/` for ready-to-use configurations:
 
 - **[startup](examples/startup/)** — Full AI company (9 agents: CEO, CTO, CMO, CPO, CFO, DevOps, Backend, UX/UI, Tester)
 - **[dev-team](examples/dev-team/)** — Minimal dev team (3 agents: Lead, Frontend, Backend)
+
+## How is this different from CrewAI?
+
+| | Crewmatic | CrewAI |
+|---|-----------|--------|
+| **Communication** | Slack (real-time, human-in-the-loop) | In-process Python |
+| **LLM** | Claude CLI (all MCP tools, sessions) | OpenAI API / any LLM |
+| **Persistence** | JSON task board + markdown memory | In-memory by default |
+| **Autonomy** | Fully autonomous loops (planning, execution, reporting) | Single workflow runs |
+| **Config** | Single YAML file | Python code |
+| **Best for** | Running an autonomous AI team 24/7 | One-off multi-agent workflows |
+
+Crewmatic is designed for **long-running autonomous teams**, not one-shot pipelines. Your agents plan their own work, execute it, report back, and keep going — all visible in Slack.
+
+## Security
+
+When agents have `tools` configured, Crewmatic passes `--dangerously-skip-permissions` to Claude CLI so agents can use Read/Write/Edit/Bash tools without interactive prompts. This means agents have **full access** to the filesystem within their working directory.
+
+To disable this, set `skip_permissions: false` in your `crew.yaml` settings. Note that agents won't be able to use file/shell tools in this mode.
 
 ## Architecture
 
