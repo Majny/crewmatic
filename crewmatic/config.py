@@ -23,6 +23,8 @@ DEFAULT_SETTINGS = {
     "stuck_timeout_minutes": 10,
     "archive_after_days": 30,
     "llm_backend": "cli",
+    "max_consecutive_failures": 3,
+    "circuit_reset_minutes": 10,
 }
 
 ENV_VAR_PATTERN = re.compile(r"\$\{(\w+)\}")
