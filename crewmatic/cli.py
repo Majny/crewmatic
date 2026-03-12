@@ -212,6 +212,76 @@ def cmd_tasks(args):
         return 1
 
 
+def cmd_doctor(args):
+    """Check prerequisites and environment setup."""
+    import shutil
+    import sys as _sys
+
+    checks = []
+
+    # Python version
+    py_ver = _sys.version_info
+    ok = py_ver >= (3, 11)
+    checks.append((ok, f"Python {py_ver.major}.{py_ver.minor}.{py_ver.micro}", ">= 3.11 required"))
+
+    # Claude CLI
+    claude_path = shutil.which("claude")
+    checks.append((bool(claude_path), f"Claude CLI: {claude_path or 'NOT FOUND'}", "Install: https://docs.anthropic.com/en/docs/claude-code"))
+
+    # crew.yaml
+    from .config import find_config
+    config_path = find_config()
+    checks.append((bool(config_path), f"crew.yaml: {config_path or 'NOT FOUND'}", "Run: crewmatic init"))
+
+    # Slack tokens
+    slack_bot = os.environ.get("SLACK_BOT_TOKEN", "")
+    checks.append((bool(slack_bot), f"SLACK_BOT_TOKEN: {'set' if slack_bot else 'NOT SET'}", "Get from Slack app settings"))
+
+    slack_app = os.environ.get("SLACK_APP_TOKEN", "")
+    checks.append((bool(slack_app), f"SLACK_APP_TOKEN: {'set' if slack_app else 'NOT SET'}", "Enable Socket Mode in Slack app"))
+
+    owner = os.environ.get("OWNER_SLACK_ID", "")
+    checks.append((bool(owner), f"OWNER_SLACK_ID: {'set' if owner else 'NOT SET'}", "Your Slack user ID"))
+
+    # Dependencies
+    for pkg_name, import_name in [("slack-bolt", "slack_bolt"), ("pyyaml", "yaml"), ("python-dotenv", "dotenv")]:
+        try:
+            __import__(import_name)
+            checks.append((True, f"Package {pkg_name}: installed", ""))
+        except ImportError:
+            checks.append((False, f"Package {pkg_name}: NOT INSTALLED", f"pip install {pkg_name}"))
+
+    # Config validation (if config exists)
+    if config_path:
+        try:
+            from .config import load_config
+            from .agent_loader import load_agents
+            config = load_config(str(config_path))
+            agents = load_agents(config)
+            checks.append((True, f"Config valid: {len(agents)} agents defined", ""))
+        except Exception as e:
+            checks.append((False, f"Config error: {e}", "Fix crew.yaml"))
+
+    # Print results
+    all_ok = True
+    for ok, msg, hint in checks:
+        icon = "[OK]" if ok else "[!!]"
+        if not ok:
+            all_ok = False
+        line = f"  {icon} {msg}"
+        if not ok and hint:
+            line += f"  ({hint})"
+        print(line)
+
+    print()
+    if all_ok:
+        print("All checks passed! Run: crewmatic run")
+    else:
+        print("Some checks failed. Fix the issues above, then run: crewmatic doctor")
+
+    return 0 if all_ok else 1
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="crewmatic",
@@ -243,6 +313,9 @@ def main():
     tasks_parser.add_argument("-c", "--config", help="Path to crew.yaml")
     tasks_parser.add_argument("-a", "--all", action="store_true", help="Include completed tasks")
 
+    # doctor
+    subparsers.add_parser("doctor", help="Check prerequisites and environment")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -255,6 +328,7 @@ def main():
         "validate": cmd_validate,
         "agents": cmd_agents,
         "tasks": cmd_tasks,
+        "doctor": cmd_doctor,
     }
 
     return commands[args.command](args)
