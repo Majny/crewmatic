@@ -38,3 +38,36 @@ def test_skips_unknown_agents():
     response = "@janitor: clean the codebase and remove dead code"
     result = parse_delegations(response, AGENT_NAMES)
     assert len(result) == 0
+
+
+def test_multiline_delegation():
+    response = (
+        "@dev: Build the payment API endpoint.\n"
+        "  It should support Stripe webhooks\n"
+        "  and return proper error codes.\n"
+        "\n"
+        "@designer: Create the landing page mockup"
+    )
+    result = parse_delegations(response, AGENT_NAMES)
+    assert len(result) == 2
+    assert "Stripe webhooks" in result[0][1]
+    assert "error codes" in result[0][1]
+    assert result[1][0] == "designer"
+
+
+def test_multiline_stops_at_blank():
+    response = (
+        "@cto: Review the auth implementation\n"
+        "  Check for security issues\n"
+        "\n"
+        "Some unrelated text here."
+    )
+    result = parse_delegations(response, AGENT_NAMES)
+    assert len(result) == 1
+    assert "security issues" in result[0][1]
+    assert "unrelated" not in result[0][1]
+
+
+def test_empty_agent_names():
+    result = parse_delegations("@cto: do something important here", set())
+    assert len(result) == 0

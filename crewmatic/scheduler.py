@@ -243,27 +243,95 @@ class Scheduler:
                     logger.warning(f"[{agent_name.upper()}] Task #{task_id} re-claimed. Discarding stale result.")
                     continue
 
-                self.task_manager.complete_task(task_id, result=response[:500])
-                self.post(
-                    agent.channel,
-                    f"Completed task #{task_id}: {task_title}\n\n{response}",
-                    agent_name=agent_name,
-                )
-                logger.info(f"[{agent_name.upper()}] Completed task #{task_id}")
-                self.handle_delegations(agent_name, response)
+                # Verify result if agent reports to a manager
+                verified = True
+                reviewer = agent.reports_to
+                reviewer_agent = self.agents.get(reviewer) if reviewer else None
 
-                # Auto-persist to memory
-                memory_dir = self.config.get("memory_dir", "./memory")
-                summary = response[:300].strip()
-                append_agent_memory(
-                    agent_name, memory_dir,
-                    f"Completed task #{task_id}: {task_title}\n\nResult: {summary}",
-                )
+                if reviewer_agent and reviewer_agent.role in ("leader", "manager"):
+                    verified = self._verify_task_result(
+                        reviewer, reviewer_agent, agent_name, task_id, task_title, response
+                    )
+
+                if verified:
+                    self.task_manager.complete_task(task_id, result=response[:500])
+                    self.post(
+                        agent.channel,
+                        f"Completed task #{task_id}: {task_title}\n\n{response}",
+                        agent_name=agent_name,
+                    )
+                    logger.info(f"[{agent_name.upper()}] Completed task #{task_id}")
+                    self.handle_delegations(agent_name, response)
+
+                    # Auto-persist to memory
+                    memory_dir = self.config.get("memory_dir", "./memory")
+                    summary = response[:300].strip()
+                    append_agent_memory(
+                        agent_name, memory_dir,
+                        f"Completed task #{task_id}: {task_title}\n\nResult: {summary}",
+                    )
+                else:
+                    # Rejected — task stays in_progress, will be re-claimed
+                    # (stuck timeout will reset it to todo)
+                    self.task_manager.reset_task(task_id)
+                    logger.info(f"[{agent_name.upper()}] Task #{task_id} sent back by {reviewer}")
                 time.sleep(10)
 
             except Exception as e:
                 logger.error(f"[{agent_name.upper()}] Work loop error: {e}")
                 time.sleep(poll_interval)
+
+    def _verify_task_result(
+        self,
+        reviewer_name: str,
+        reviewer_agent: AgentConfig,
+        worker_name: str,
+        task_id: int,
+        task_title: str,
+        result: str,
+    ) -> bool:
+        """Ask a manager to verify a worker's task result.
+
+        Returns True if approved, False if rejected (task should be retried).
+        """
+        prompt = (
+            f"Your team member {worker_name.upper()} completed task #{task_id}:\n\n"
+            f"**Task:** {task_title}\n\n"
+            f"**Result:**\n{result[:2000]}\n\n"
+            f"Review this result. Does it meet the task requirements?\n"
+            f"- If YES: respond with APPROVED and a brief note.\n"
+            f"- If NO: respond with REJECTED and specific feedback on what needs to change.\n"
+            f"  Then delegate the fix back: @{worker_name}: specific fix instructions\n\n"
+            f"Start your response with either APPROVED or REJECTED."
+        )
+
+        try:
+            review = self.call_agent(reviewer_name, prompt)
+            review_upper = review.strip()[:100].upper()
+
+            if "REJECTED" in review_upper:
+                # Post rejection feedback to worker's channel
+                self.post(
+                    reviewer_agent.channel,
+                    f"Review of task #{task_id} ({worker_name.upper()}): REJECTED\n\n{review}",
+                    agent_name=reviewer_name,
+                )
+                # Parse any re-delegation from the review
+                self.handle_delegations(reviewer_name, review)
+                return False
+
+            # Approved (default if unclear)
+            self.post(
+                reviewer_agent.channel,
+                f"Review of task #{task_id} ({worker_name.upper()}): Approved",
+                agent_name=reviewer_name,
+            )
+            return True
+
+        except Exception as e:
+            # If review fails, auto-approve to avoid blocking
+            logger.warning(f"Review by {reviewer_name} failed: {e}. Auto-approving.")
+            return True
 
     def planning_loop(self):
         """Leader continuously plans work when task board runs low."""

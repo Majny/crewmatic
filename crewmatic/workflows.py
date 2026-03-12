@@ -87,6 +87,9 @@ class WorkflowEngine:
 
         self.workflow_defs = self.load_workflows()
 
+        # Resume interrupted runs from previous session
+        self._resume_interrupted_runs()
+
     # ------------------------------------------------------------------
     # Loading
     # ------------------------------------------------------------------
@@ -292,6 +295,7 @@ class WorkflowEngine:
                     attempt += 1
                     result = self.execute_step(run, step)
                     result.retries = attempt
+                    self.save_run(run)  # checkpoint after each step
 
                     if result.status == "passed":
                         self._post_progress(
@@ -454,6 +458,94 @@ class WorkflowEngine:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _resume_interrupted_runs(self):
+        """On startup, find workflow runs that were interrupted and resume them."""
+        for fname in self.list_completed_runs():
+            fpath = os.path.join(self.data_dir, fname)
+            run = self.load_run(fpath)
+            if run and run.status == "running":
+                logger.info(f"Found interrupted workflow run: {run.workflow_name} ({run.run_id})")
+                # Resume in background thread
+                threading.Thread(
+                    target=self._resume_run,
+                    args=(run, fpath),
+                    daemon=True,
+                    name=f"wf-resume-{run.run_id}",
+                ).start()
+
+    def _resume_run(self, run: WorkflowRun, filepath: str):
+        """Resume an interrupted workflow run from where it left off."""
+        with self._lock:
+            self._active_runs.append(run)
+
+        self._post_progress(run, f"Resuming workflow *{run.workflow_name}* after restart")
+
+        # Figure out which steps already completed
+        executed: set[str] = set()
+        for step in run.steps:
+            sr = run.step_results.get(step.id)
+            if sr and sr.status in ("passed", "failed", "skipped"):
+                executed.add(step.id)
+
+        # Continue with remaining steps (same logic as run_workflow)
+        step_map = {s.id: s for s in run.steps}
+
+        while len(executed) < len(run.steps):
+            progress_made = False
+
+            for step in run.steps:
+                if step.id in executed:
+                    continue
+
+                deps_met = all(
+                    dep_id in executed and run.step_results[dep_id].status == "passed"
+                    for dep_id in step.depends_on
+                )
+                if not deps_met:
+                    deps_failed = any(
+                        dep_id in executed and run.step_results[dep_id].status == "failed"
+                        for dep_id in step.depends_on
+                    )
+                    if deps_failed:
+                        run.step_results[step.id].status = "skipped"
+                        executed.add(step.id)
+                        progress_made = True
+                    continue
+
+                self._post_progress(run, f"Step *{step.id}* started (agent: {step.agent})")
+                result = self.execute_step(run, step)
+                result.retries = 1
+                executed.add(step.id)
+                progress_made = True
+                self.save_run(run)  # checkpoint after each step
+
+                if result.status == "passed":
+                    self._post_progress(run, f"Step *{step.id}* passed")
+                else:
+                    self._post_progress(run, f"Step *{step.id}* FAILED")
+
+            if not progress_made:
+                for step in run.steps:
+                    if step.id not in executed:
+                        run.step_results[step.id].status = "skipped"
+                        executed.add(step.id)
+                break
+
+        # Final status
+        statuses = {r.status for r in run.step_results.values()}
+        if "failed" in statuses:
+            run.status = "failed"
+        elif statuses <= {"passed", "skipped"} and "passed" in statuses:
+            run.status = "completed"
+        else:
+            run.status = "failed"
+
+        with self._lock:
+            self._active_runs = [r for r in self._active_runs if r.run_id != run.run_id]
+
+        self._post_progress(run, f"Workflow *{run.workflow_name}* finished: *{run.status.upper()}*")
+        self.save_run(run)
 
     def _post_progress(self, run: WorkflowRun, message: str):
         """Post workflow progress to the leader's channel."""

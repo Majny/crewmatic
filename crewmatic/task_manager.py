@@ -126,6 +126,21 @@ class TaskManager:
                     return t
             return None
 
+    def reset_task(self, task_id: int) -> dict | None:
+        """Reset a task back to todo (e.g. after failed verification)."""
+        with self._lock:
+            tasks = self._load()
+            for t in tasks:
+                if t["id"] == task_id:
+                    t["status"] = "todo"
+                    t.pop("claimed_by", None)
+                    t.pop("claimed_at", None)
+                    t["claim_generation"] = t.get("claim_generation", 0) + 1
+                    self._save(tasks)
+                    logger.info(f"Task #{task_id} reset to todo")
+                    return t
+            return None
+
     def cancel_task(self, task_id: int, reason: str = "") -> dict | None:
         with self._lock:
             tasks = self._load()

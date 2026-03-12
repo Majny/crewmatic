@@ -6,12 +6,31 @@ import re
 logger = logging.getLogger(__name__)
 
 
+def _build_delegation_pattern(agent_names: set[str]) -> re.Pattern:
+    """Build a single regex that matches any delegation pattern."""
+    name_alts = "|".join(re.escape(n) for n in agent_names)
+    # Match: @agent: ..., **AGENT**: ..., *AGENT*: ...
+    # Case-insensitive, captures agent name + everything after the colon
+    pattern = (
+        rf"(?:@({name_alts})\b[:\s]+|"
+        rf"\*\*({name_alts})\*\*[:\s]+|"
+        rf"\*({name_alts})\*[:\s]+)"
+    )
+    return re.compile(pattern, re.IGNORECASE)
+
+
 def parse_delegations(response: str, agent_names: set[str]) -> list[tuple[str, str]]:
     """Parse @agent: task patterns from an LLM response.
 
     Recognizes patterns like:
         @cto: implement the auth module
         **CTO**: implement the auth module
+        @backend_dev: Build the payment API.
+          It should support Stripe webhooks
+          and return proper error codes.
+
+    Handles multi-line descriptions: continuation lines (not starting
+    with a new delegation or bullet) are joined to the previous delegation.
 
     Args:
         response: The LLM response text.
@@ -20,23 +39,46 @@ def parse_delegations(response: str, agent_names: set[str]) -> list[tuple[str, s
     Returns:
         List of (agent_name, task_description) tuples.
     """
+    if not agent_names:
+        return []
+
+    pattern = _build_delegation_pattern(agent_names)
+    name_lookup = {n.lower(): n for n in agent_names}
+
+    # Find all delegation start positions
+    matches = list(pattern.finditer(response))
+    if not matches:
+        return []
+
     delegations = []
-    for line in response.split("\n"):
-        for agent_name in agent_names:
-            escaped = re.escape(agent_name)
-            escaped_upper = re.escape(agent_name.upper())
-            patterns = [
-                rf"@{escaped}\b[:\s]+(.+)",
-                rf"\*\*{escaped_upper}\*\*[:\s]+(.+)",
-                rf"\*{escaped_upper}\*[:\s]+(.+)",
-            ]
-            for pattern in patterns:
-                match = re.search(pattern, line, re.IGNORECASE)
-                if match:
-                    task_text = match.group(1).strip()
-                    if len(task_text) > 10:
-                        delegations.append((agent_name, task_text))
-                    break
+    for i, m in enumerate(matches):
+        # Extract the matched agent name from whichever capture group hit
+        raw_name = m.group(1) or m.group(2) or m.group(3)
+        agent_name = name_lookup.get(raw_name.lower(), raw_name.lower())
+
+        # Text starts after the match, ends at the next delegation or end
+        start = m.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(response)
+        raw_text = response[start:end]
+
+        # Clean up: join continuation lines, strip bullets/numbering
+        lines = []
+        for line in raw_text.split("\n"):
+            stripped = line.strip()
+            if not stripped:
+                break  # blank line = end of this delegation
+            # Stop if line looks like a new section/heading (not continuation)
+            if stripped.startswith("#") or stripped.startswith("---"):
+                break
+            lines.append(stripped)
+
+        task_text = " ".join(lines).strip()
+        # Remove trailing markdown artifacts
+        task_text = task_text.rstrip("*_")
+
+        if len(task_text) > 10:
+            delegations.append((agent_name, task_text))
+
     return delegations
 
 
