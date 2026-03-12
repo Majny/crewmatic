@@ -4,7 +4,6 @@ import json
 import logging
 import os
 import re
-import tempfile
 import threading
 import time
 from datetime import datetime
@@ -20,6 +19,7 @@ from .config import load_config
 from .llm import CrewmaticError
 from .context import build_prompt
 from .delegation import handle_delegations as _handle_delegations
+from .integrations import resolve_integrations_for_agent, build_mcp_config_for_integrations
 from .project_manager import ProjectManager
 from .scheduler import Scheduler
 from .task_manager import TaskManager
@@ -204,34 +204,22 @@ class CrewmaticBot:
     def _build_mcp_config(self, agent: AgentConfig) -> str | None:
         """Generate a temporary MCP config JSON for an agent.
 
-        Returns path to the temp file, or None if the agent has no MCP servers.
+        Returns path to the config file, or None if the agent has no integrations.
         """
-        if not agent.mcp_servers:
+        global_integrations = self.config.get("integrations", [])
+        agent_integrations = resolve_integrations_for_agent(
+            agent.role, agent.integrations, global_integrations
+        )
+
+        if not agent_integrations:
             return None
 
-        global_mcp = self.config.get("mcp_servers", {})
-        if not global_mcp:
+        mcp_config = build_mcp_config_for_integrations(agent_integrations)
+
+        if not mcp_config.get("mcpServers"):
             return None
 
-        servers = {}
-        for server_name in agent.mcp_servers:
-            server_def = global_mcp.get(server_name)
-            if not server_def:
-                logger.warning(f"Agent {agent.name} references unknown MCP server: {server_name}")
-                continue
-            servers[server_name] = {
-                "command": server_def["command"],
-                "args": server_def.get("args", []),
-            }
-            if server_def.get("env"):
-                servers[server_name]["env"] = server_def["env"]
-
-        if not servers:
-            return None
-
-        mcp_config = {"mcpServers": servers}
-
-        # Write to a persistent temp file (cleaned up on process exit)
+        # Write to a persistent config file (cleaned up on process exit)
         config_dir = os.path.join(self.config["data_dir"], "mcp_configs")
         os.makedirs(config_dir, exist_ok=True)
         config_path = os.path.join(config_dir, f"{agent.name}.json")
@@ -625,7 +613,7 @@ class CrewmaticBot:
             delegates_to=raw_agent.get("delegates_to", []),
             reports_to=raw_agent.get("reports_to"),
             receives_context=raw_agent.get("receives_context", _default_context_for_role(role)),
-            mcp_servers=raw_agent.get("mcp_servers", []),
+            integrations=raw_agent.get("integrations"),
         )
         is_new = name not in self.agents
         self.agents[name] = agent

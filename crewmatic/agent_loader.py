@@ -19,7 +19,7 @@ class AgentConfig:
     delegates_to: list[str] = field(default_factory=list)
     reports_to: str | None = None
     receives_context: list[str] = field(default_factory=list)
-    mcp_servers: list[str] = field(default_factory=list)
+    integrations: list[str] | None = None
 
 
 def load_agents(config: dict) -> dict[str, AgentConfig]:
@@ -50,7 +50,7 @@ def load_agents(config: dict) -> dict[str, AgentConfig]:
             delegates_to=raw.get("delegates_to", []),
             reports_to=raw.get("reports_to"),
             receives_context=receives_context,
-            mcp_servers=raw.get("mcp_servers", []),
+            integrations=raw.get("integrations"),
         )
         agents[name] = agent
         logger.info(f"Loaded agent: {name} (role={role}, model={agent.model}, channel=#{agent.channel})")

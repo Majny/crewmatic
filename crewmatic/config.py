@@ -118,6 +118,9 @@ def load_config(config_path: str | None = None) -> dict:
 
 def validate_config(config: dict) -> list[str]:
     """Validate config and return list of error strings (empty = valid)."""
+    from .integrations import CATALOG
+    catalog = CATALOG
+
     errors = []
 
     if "name" not in config:
@@ -152,18 +155,29 @@ def validate_config(config: dict) -> list[str]:
         if reports_to and reports_to not in agents:
             errors.append(f"Agent '{name}' reports to unknown agent '{reports_to}'")
 
-        # Validate MCP server references
-        mcp_servers = config.get("mcp_servers", {})
-        for server_name in agent.get("mcp_servers", []):
-            if server_name not in mcp_servers:
-                errors.append(f"Agent '{name}' references unknown MCP server '{server_name}'")
+        # Validate per-agent integrations
+        agent_integrations = agent.get("integrations")
+        if agent_integrations is not None:
+            if not isinstance(agent_integrations, list):
+                errors.append(f"Agent '{name}' integrations must be a list")
+            else:
+                for integ in agent_integrations:
+                    if not isinstance(integ, str):
+                        errors.append(f"Agent '{name}' has non-string integration: {integ}")
+                    elif integ not in catalog:
+                        errors.append(f"Agent '{name}' references unknown integration '{integ}'")
 
-    # Validate MCP server definitions
-    for server_name, server_def in config.get("mcp_servers", {}).items():
-        if not isinstance(server_def, dict):
-            errors.append(f"MCP server '{server_name}' must be a mapping")
-        elif "command" not in server_def:
-            errors.append(f"MCP server '{server_name}' missing 'command'")
+    # Validate global integrations
+    global_integrations = config.get("integrations", [])
+    if global_integrations:
+        if not isinstance(global_integrations, list):
+            errors.append("'integrations' must be a list of strings")
+        else:
+            for integ in global_integrations:
+                if not isinstance(integ, str):
+                    errors.append(f"Global integration must be a string, got: {integ}")
+                elif integ not in catalog:
+                    errors.append(f"Unknown integration '{integ}'. Available: {', '.join(sorted(catalog.keys()))}")
 
     if leader_count == 0:
         logger.warning("No agent has role 'leader'. Planning and report loops won't run.")
