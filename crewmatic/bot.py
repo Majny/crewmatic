@@ -393,52 +393,9 @@ class CrewmaticBot:
         except Exception as e:
             logger.error(f"Agent reply error ({agent_name}): {e}")
 
-    def _register_handlers(self):
-        """Register Slack event handlers."""
-
-        @self.app.event("app_mention")
-        def handle_mention(event, say):
-            text = re.sub(r"<@[A-Z0-9]+>\s*", "", event.get("text", "")).strip()
-            channel_id = event.get("channel")
-            thread_ts = event.get("thread_ts", event.get("ts"))
-            channel_name = self.get_channel_name(channel_id)
-
-            agent_name, agent = self.resolve_agent(channel_name, text)
-            if not agent:
-                leader = get_leader(self.agents)
-                agent_name = leader.name if leader else list(self.agents.keys())[0]
-
-            cmd_response = self.handle_command(text, channel_name)
-            if cmd_response:
-                client = self.get_agent_client(agent_name)
-                client.chat_postMessage(channel=channel_id, text=cmd_response, thread_ts=thread_ts)
-                return
-
-            logger.info(f"Routing to {agent_name} in #{channel_name}: {text[:80]}")
-
-            context = ""
-            if event.get("thread_ts"):
-                context = self.get_thread_context(channel_id, thread_ts)
-
-            user_id = event.get("user", "")
-            if user_id == self.owner_slack_id:
-                try:
-                    client = self.get_agent_client(agent_name)
-                    client.chat_postMessage(
-                        channel=channel_id, thread_ts=thread_ts,
-                        text=f"{agent_name.upper()} is on it.",
-                    )
-                except Exception:
-                    pass
-
-            threading.Thread(
-                target=self._handle_agent_reply,
-                args=(agent_name, text, channel_id, thread_ts, context),
-                daemon=True,
-            ).start()
-
-        @self.app.event("message")
-        def handle_message(event, say):
+    def _route_message(self, event, is_mention: bool = False):
+        """Shared message routing logic for mentions and direct messages."""
+        if not is_mention:
             if event.get("subtype"):
                 return
             if event.get("user") in self.all_bot_user_ids:
@@ -446,43 +403,61 @@ class CrewmaticBot:
             if event.get("bot_id"):
                 return
 
-            text = event.get("text", "")
-            channel_id = event.get("channel")
-            thread_ts = event.get("thread_ts", event.get("ts"))
-            channel_name = self.get_channel_name(channel_id)
+        text = event.get("text", "")
+        if is_mention:
+            text = re.sub(r"<@[A-Z0-9]+>\s*", "", text).strip()
 
-            agent_name, agent = self.resolve_agent(channel_name, text)
-            if not agent:
+        channel_id = event.get("channel")
+        thread_ts = event.get("thread_ts", event.get("ts"))
+        channel_name = self.get_channel_name(channel_id)
+
+        agent_name, agent = self.resolve_agent(channel_name, text)
+        if not agent:
+            if is_mention:
+                leader = get_leader(self.agents)
+                agent_name = leader.name if leader else list(self.agents.keys())[0]
+            else:
                 return
 
-            cmd_response = self.handle_command(text, channel_name)
-            if cmd_response:
+        cmd_response = self.handle_command(text, channel_name)
+        if cmd_response:
+            client = self.get_agent_client(agent_name)
+            client.chat_postMessage(channel=channel_id, text=cmd_response, thread_ts=thread_ts)
+            return
+
+        logger.info(f"{'Mention' if is_mention else 'Message'} -> {agent_name} in #{channel_name}: {text[:80]}")
+
+        context = ""
+        if event.get("thread_ts"):
+            context = self.get_thread_context(channel_id, thread_ts)
+
+        user_id = event.get("user", "")
+        if user_id == self.owner_slack_id:
+            try:
                 client = self.get_agent_client(agent_name)
-                client.chat_postMessage(channel=channel_id, text=cmd_response, thread_ts=thread_ts)
-                return
+                client.chat_postMessage(
+                    channel=channel_id, thread_ts=thread_ts,
+                    text=f"{agent_name.upper()} is on it.",
+                )
+            except Exception:
+                pass
 
-            logger.info(f"Message to {agent_name} in #{channel_name}: {text[:80]}")
+        threading.Thread(
+            target=self._handle_agent_reply,
+            args=(agent_name, text, channel_id, thread_ts, context),
+            daemon=True,
+        ).start()
 
-            context = ""
-            if event.get("thread_ts"):
-                context = self.get_thread_context(channel_id, thread_ts)
+    def _register_handlers(self):
+        """Register Slack event handlers."""
 
-            user_id = event.get("user", "")
-            if user_id == self.owner_slack_id:
-                try:
-                    client = self.get_agent_client(agent_name)
-                    client.chat_postMessage(
-                        channel=channel_id, thread_ts=thread_ts,
-                        text=f"{agent_name.upper()} is on it.",
-                    )
-                except Exception:
-                    pass
+        @self.app.event("app_mention")
+        def handle_mention(event, say):
+            self._route_message(event, is_mention=True)
 
-            threading.Thread(
-                target=self._handle_agent_reply,
-                args=(agent_name, text, channel_id, thread_ts, context),
-                daemon=True,
-            ).start()
+        @self.app.event("message")
+        def handle_message(event, say):
+            self._route_message(event, is_mention=False)
 
         @self.app.event("app_home_opened")
         def handle_app_home(event, client):
