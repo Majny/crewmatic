@@ -95,20 +95,11 @@ agents:
       - Find and reach potential customers
       - Report findings after completing a task
 
-# MCP servers (optional — give agents access to external services)
-# Install with: pip install crewmatic[docs]
-# See: https://github.com/modelcontextprotocol/servers
-mcp_servers: {}
-  # gmail:
-  #   command: "npx"
-  #   args: ["-y", "@anthropic/mcp-server-gmail"]
-  #   env:
-  #     GMAIL_OAUTH_CREDENTIALS: "${GMAIL_OAUTH_CREDENTIALS}"
-  # github:
-  #   command: "npx"
-  #   args: ["-y", "@modelcontextprotocol/server-github"]
-  #   env:
-  #     GITHUB_TOKEN: "${GITHUB_TOKEN}"
+# Integrations (optional — give agents access to external services)
+# Available: gmail, google-calendar, github, notion, slack, linear, google-drive, postgres, hubspot
+# integrations:
+#   - gmail
+#   - github
 
 # Projects (optional — for multi-project teams)
 projects:
@@ -346,6 +337,20 @@ def cmd_doctor(args):
             checks.append((True, f"Config valid: {len(agents)} agents defined", ""))
         except Exception as e:
             checks.append((False, f"Config error: {e}", "Fix crew.yaml"))
+
+    # Integration credentials
+    if config_path:
+        try:
+            from .config import load_config
+            config = load_config(str(config_path))
+            from .integrations import check_integration_credentials
+            integrations = config.get("integrations", [])
+            if integrations:
+                cred_checks = check_integration_credentials(integrations)
+                for int_name, env_var, is_set in cred_checks:
+                    checks.append((is_set, f"{int_name}: {env_var} {'set' if is_set else 'NOT SET'}", f"Required for {int_name} integration"))
+        except Exception:
+            pass
 
     # Print results
     all_ok = True

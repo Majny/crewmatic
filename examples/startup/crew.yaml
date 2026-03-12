@@ -22,28 +22,8 @@ git:
   author_name: "AI CTO"
   author_email: "ai-cto@example.com"
 
-# MCP servers — give agents access to external services
-mcp_servers:
-  gmail:
-    command: "npx"
-    args: ["-y", "@anthropic/mcp-server-gmail"]
-    env:
-      GMAIL_OAUTH_CREDENTIALS: "${GMAIL_OAUTH_CREDENTIALS}"
-  github:
-    command: "npx"
-    args: ["-y", "@modelcontextprotocol/server-github"]
-    env:
-      GITHUB_TOKEN: "${GITHUB_TOKEN}"
-  google-calendar:
-    command: "npx"
-    args: ["-y", "@anthropic/mcp-server-google-calendar"]
-    env:
-      GOOGLE_CALENDAR_CREDENTIALS: "${GOOGLE_CALENDAR_CREDENTIALS}"
-  notion:
-    command: "npx"
-    args: ["-y", "@anthropic/mcp-server-notion"]
-    env:
-      NOTION_TOKEN: "${NOTION_TOKEN}"
+# Integrations — give agents access to external services
+integrations: [gmail, github, google-calendar, notion]
 
 agents:
   ceo:
@@ -52,7 +32,7 @@ agents:
     role: "leader"
     tools: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep"
     delegates_to: [cto, cmo, cpo, cfo]
-    mcp_servers: [gmail, google-calendar]
+    integrations: [gmail, google-calendar]
     system_prompt: |
       You are the CEO. You run this company autonomously.
       The owner is your investor — not your manager.
@@ -89,7 +69,7 @@ agents:
     role: "worker"
     tools: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep"
     reports_to: ceo
-    mcp_servers: [gmail, notion]
+    integrations: [gmail, notion]
     system_prompt: |
       You are the CMO. Marketing, growth, and customer acquisition.
       Research competitors, create content, plan distribution.
@@ -150,7 +130,7 @@ agents:
     role: "worker"
     tools: "Read,Glob,Grep,Bash,Edit,Write,WebFetch,WebSearch"
     reports_to: ceo
-    mcp_servers: [github]
+    integrations: [github]
     system_prompt: |
       You are DevOps. Infrastructure, CI/CD, deployment.
       Keep systems running, automate pipelines, manage infrastructure.
