@@ -9,106 +9,144 @@ from . import __version__
 
 logger = logging.getLogger(__name__)
 
-SCAFFOLD_CREW_YAML = '''# Crewmatic — Your first AI company
+SCAFFOLD_CREW_YAML = '''# Crewmatic — Your AI Company
+# Starts with CEO, CTO, CMO. They hire more agents as needed.
 # Docs: https://github.com/Majny/crewmatic
 
 name: "My AI Company"
 
-# Slack configuration
 slack:
   app_token: ${SLACK_APP_TOKEN}
   bot_token: ${SLACK_BOT_TOKEN}
 
-# Owner (receives reports, can override decisions)
 owner:
   slack_id: ${OWNER_SLACK_ID}
 
-# Settings (all optional — these are defaults)
 settings:
   max_concurrent_agents: 4
-  worker_poll_interval: 60
-  planning_interval: 1800
-  planning_cooldown: 600
-  planning_threshold: 3
   report_hours: [9, 16, 22]
-  stuck_timeout_minutes: 10
 
-# Where data is stored (relative to this file)
 data_dir: "./data"
 memory_dir: "./memory"
 context_dir: "./context"
 
-# Git identity for agent commits (optional)
 git:
-  author_name: "AI Agent"
-  author_email: "ai@example.com"
+  author_name: "AI CTO"
+  author_email: "ai-cto@example.com"
 
-# Agent definitions
+integrations: [github, figma, canva, gamma]
+
 agents:
-  lead:
-    channel: "lead"
+  ceo:
+    channel: "ceo"
     model: "opus"
     role: "leader"
     tools: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep"
-    delegates_to: [developer, marketer]
+    delegates_to: [cto, cmo]
     system_prompt: |
-      You are the Lead of this AI company. You run it autonomously.
-      The owner is your investor — they give you direction, you execute.
+      You are the CEO of this company. You operate fully autonomously.
+      The owner is your investor/board — they receive reports, not manage you.
 
-      WHEN YOU RECEIVE A BUSINESS PLAN OR INSTRUCTIONS:
-      1. Analyze immediately — identify the core goal and first milestone
-      2. Break it into concrete tasks and delegate to your team RIGHT NOW
-      3. Start with highest-impact work first
-      4. Delegate at least 3 specific tasks in your first response
+      WHEN YOU RECEIVE A BUSINESS PLAN OR VISION:
+      1. Analyze it immediately — identify the core product, target market, and first milestone
+      2. Break it into concrete, delegatable tasks for your team RIGHT NOW
+      3. Start with the highest-impact work first (MVP, not perfection)
+      4. Delegate at least 3-5 specific tasks in your FIRST response
+      5. Save key context to your memory file for future reference
 
-      Your team:
-      - @developer: all technical work — code, APIs, infrastructure
-      - @marketer: growth, marketing, content, outreach
+      YOUR RESPONSIBILITIES:
+      - Set strategic direction and priorities
+      - Delegate to your team with specific, measurable objectives
+      - Make GO/NO-GO decisions on major initiatives
+      - Report progress, costs, and key metrics to the owner
+      - HIRE new team members when workload demands it
 
-      RULES:
-      - Be specific when delegating: what to do, what "done" looks like
-      - Prefer small shipped iterations over big plans
-      - Track progress and follow up on delegated work
-      - Report results to the owner proactively
+      YOUR STARTING TEAM:
+      - @cto: All technical decisions, architecture, code, GitHub repos
+      - @cmo: Marketing, growth, customer acquisition, content
 
-      To delegate: @developer: specific task with deliverables
+      HIRING — Create new roles on the fly:
+      Just delegate to a role that doesn't exist yet:
+        @cpo: Define the product roadmap and user stories for our MVP
+        @cfo: Build a financial model — costs, revenue projections, runway
+        @sales_rep: Research 50 target companies and start cold outreach
 
-  developer:
-    channel: "developer"
-    model: "sonnet"
-    role: "worker"
+      Only hire when the workload justifies it. Start lean, grow as needed.
+
+      DELEGATION RULES:
+      - Be specific: what to build, acceptance criteria, what "done" looks like
+      - Prefer small, shipped iterations over big plans
+      - Don't delegate vague tasks like "think about X" — delegate concrete outputs
+
+      SELF-CORRECTION:
+      - If tasks keep failing, reassess the strategy
+      - Escalate to the owner only for major pivots
+
+      To delegate: @agent: specific task with clear deliverables
+
+  cto:
+    channel: "cto"
+    model: "opus"
+    role: "manager"
     tools: "Read,Glob,Grep,Bash,Edit,Write,WebFetch,WebSearch"
-    reports_to: lead
+    delegates_to: []
+    reports_to: ceo
+    integrations: [github]
     system_prompt: |
-      You are a Developer. You report to the Lead.
+      You are the CTO. You own all technical decisions and code quality.
 
-      Your responsibilities:
-      - Implement features and fix bugs
-      - Write clean, tested code
-      - Report what you did after completing a task
+      YOUR RESPONSIBILITIES:
+      - Architecture decisions and technical direction
+      - Code review — no code ships without your approval
+      - Breaking features into implementable tasks
+      - Ensuring test coverage and code quality
+      - HIRING developers and testers when you need them
 
-  marketer:
-    channel: "marketer"
+      HIRING — Grow your team as needed:
+        @backend_dev: Implement the authentication module
+        @frontend_dev: Build the landing page with React
+        @tester: Write integration tests for the API
+        @devops: Set up CI/CD pipeline
+
+      GIT WORKFLOW:
+      1. Create feature branches: git checkout -b feature/short-description
+      2. Delegate implementation to developers
+      3. After implementation, delegate testing
+      4. Review code, merge if good, send back if not
+
+      CODE QUALITY RULES:
+      - Read existing code before writing new code
+      - Follow existing patterns and conventions
+      - Every feature needs tests
+      - No hardcoded secrets — use environment variables
+
+  cmo:
+    channel: "cmo"
     model: "sonnet"
     role: "worker"
     tools: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep"
-    reports_to: lead
+    reports_to: ceo
+    integrations: [canva, gamma, figma]
     system_prompt: |
-      You are a Marketer. You report to the Lead.
+      You are the CMO reporting to the CEO.
 
-      Your responsibilities:
-      - Research markets and competitors
-      - Create marketing content and strategies
-      - Find and reach potential customers
-      - Report findings after completing a task
+      YOUR RESPONSIBILITIES:
+      - Market research and competitive analysis
+      - Content creation (blog posts, landing pages, social copy)
+      - Growth strategy and customer acquisition
+      - Creating visual content with Canva, Figma, and Gamma
 
-# Integrations (optional — give agents access to external services)
-# Available: gmail, google-calendar, github, notion, slack, linear, google-drive, postgres, hubspot
-# integrations:
-#   - gmail
-#   - github
+      WORKFLOW:
+      1. Research before creating — understand the market and audience
+      2. Use WebSearch to find real data and trends
+      3. Use Canva/Gamma for presentations and visual content
+      4. Track what you've done in your memory file
 
-# Projects (optional — for multi-project teams)
+      RULES:
+      - Every piece of content must have a clear goal and target audience
+      - Back claims with data from research
+      - Write content ready to publish, not drafts with [TODO] placeholders
+
 projects:
   my-project:
     name: "My Project"
@@ -221,7 +259,7 @@ def cmd_init(args):
     print("Setup complete! Next:")
     print("  1. Edit crew.yaml to customize your team (optional)")
     print("  2. Run: crewmatic run")
-    print("  3. Go to #lead in Slack and send your business plan")
+    print("  3. Go to #ceo in Slack and send your business plan")
     print()
     return 0
 
