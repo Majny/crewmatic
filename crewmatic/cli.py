@@ -182,7 +182,14 @@ def cmd_init(args):
     # Optional: GitHub token
     if not env_vars.get("GITHUB_TOKEN"):
         print("Step 4: GitHub token (optional — needed if agents should code)")
-        print("  Create one at https://github.com/settings/tokens")
+        print()
+        print("  1. Go to https://github.com/settings/tokens")
+        print("  2. Click 'Generate new token' > 'Generate new token (classic)'")
+        print("  3. Name: crewmatic, Expiration: pick what suits you")
+        print("  4. Select scopes: repo (full), workflow")
+        print("     (just check these two boxes, leave everything else unchecked)")
+        print("  5. Click 'Generate token' > copy the ghp_... value")
+        print()
         gh_token = _prompt("Paste GitHub token (or press Enter to skip)", required=False, secret=True)
         if gh_token:
             env_vars["GITHUB_TOKEN"] = gh_token
