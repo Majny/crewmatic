@@ -628,6 +628,10 @@ class CrewmaticBot:
                 lines.append(f"  *{name.upper()}* ({agent.role}) #{agent.channel}{reports}{delegates}")
             return "Current team:\n" + "\n".join(lines)
 
+        if text_lower == "integrations":
+            self._show_integrations_manager(channel_name)
+            return None  # Response sent via blocks
+
         if text_lower == "help":
             return (
                 "Available commands:\n"
@@ -646,6 +650,7 @@ class CrewmaticBot:
                 "  add agent / hire — Add a new agent\n"
                 "  team — Show current team structure\n"
                 "  costs — Show cost tracker\n"
+                "  integrations — Manage integrations\n"
                 "  help — Show this help"
             )
 
@@ -792,6 +797,106 @@ class CrewmaticBot:
                     ],
                 },
             )
+
+        @self.app.action(re.compile(r"^manage_integrations_\d+$"))
+        def handle_manage_integrations_checkbox(ack, body):
+            ack()
+
+        @self.app.action("manage_integrations_save")
+        def handle_manage_integrations_save(ack, body):
+            ack()
+            selected = []
+            block_state = body.get("state", {}).get("values", {})
+            for block_id, block_data in block_state.items():
+                if not block_id.startswith("manage_integrations_block_"):
+                    continue
+                for action_data in block_data.values():
+                    for opt in action_data.get("selected_options", []):
+                        selected.append(opt["value"])
+            channel_id = body["channel"]["id"]
+            self._save_integrations(sorted(selected), channel_id)
+
+        @self.app.action("manage_integrations_cancel")
+        def handle_manage_integrations_cancel(ack, body):
+            ack()
+            channel_id = body["channel"]["id"]
+            self.app.client.chat_postMessage(channel=channel_id, text="Integration changes cancelled.")
+
+    def _show_integrations_manager(self, channel_name: str):
+        """Show Block Kit checkboxes to manage integrations."""
+        from .integrations import list_integrations
+
+        all_integrations = list_integrations()
+        current = self.config.get("integrations", [])
+
+        CHUNK_SIZE = 10
+        options_all = []
+        initial_all = []
+        for integration in sorted(all_integrations, key=lambda i: i["key"]):
+            key = integration["key"]
+            option = {
+                "text": {"type": "plain_text", "text": key},
+                "description": {"type": "plain_text", "text": integration.get("description", "")[:75]},
+                "value": key,
+            }
+            options_all.append(option)
+            if key in current:
+                initial_all.append(option)
+
+        chunks = [options_all[i:i + CHUNK_SIZE] for i in range(0, len(options_all), CHUNK_SIZE)]
+
+        blocks = [
+            {"type": "header", "text": {"type": "plain_text", "text": "Manage integrations"}},
+            {"type": "section", "text": {"type": "mrkdwn", "text": f"Currently enabled: {', '.join(current) or 'none'}\nSelect the integrations you want, then click *Save*."}},
+        ]
+
+        for idx, chunk in enumerate(chunks):
+            chunk_initial = [o for o in chunk if o in initial_all]
+            blocks.append({
+                "type": "actions",
+                "block_id": f"manage_integrations_block_{idx}",
+                "elements": [{
+                    "type": "checkboxes",
+                    "action_id": f"manage_integrations_{idx}",
+                    "options": chunk,
+                    **({"initial_options": chunk_initial} if chunk_initial else {}),
+                }],
+            })
+
+        blocks.append({
+            "type": "actions",
+            "elements": [
+                {"type": "button", "text": {"type": "plain_text", "text": "Save"}, "style": "primary", "action_id": "manage_integrations_save"},
+                {"type": "button", "text": {"type": "plain_text", "text": "Cancel"}, "action_id": "manage_integrations_cancel"},
+            ],
+        })
+
+        channel_id = self.channel_name_to_id.get(channel_name)
+        if channel_id:
+            self.app.client.chat_postMessage(channel=channel_id, text="Manage integrations", blocks=blocks)
+
+    def _save_integrations(self, selected: list[str], channel_id: str):
+        """Save updated integrations to crew.yaml and reload config."""
+        import yaml
+        config_path = self.config.get("_config_path", "")
+        if not config_path:
+            self.app.client.chat_postMessage(channel=channel_id, text="Cannot find crew.yaml path.")
+            return
+
+        try:
+            with open(config_path, encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+            config["integrations"] = selected
+            with open(config_path, "w", encoding="utf-8") as f:
+                yaml.dump(config, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+            self.config["integrations"] = selected
+            self.app.client.chat_postMessage(
+                channel=channel_id,
+                text=f"Integrations updated: {', '.join(selected) or 'none'}",
+            )
+        except Exception as exc:
+            logger.error(f"Failed to save integrations: {exc}")
+            self.app.client.chat_postMessage(channel=channel_id, text=f"Failed to save: {exc}")
 
     def _handle_add_agent(self, request_text: str, channel_name: str):
         """Generate and add a new agent based on natural language request."""
