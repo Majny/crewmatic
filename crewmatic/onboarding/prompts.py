@@ -57,20 +57,47 @@ Output ONLY valid YAML (no markdown fences, no explanation). Follow these rules 
 
 4. Include a git: section with author_name and author_email based on the business.
 
-5. Under agents: define the team. Rules:
+5. Under agents: define EXACTLY 3 core agents — a lean startup team that grows organically:
+   a) ONE leader (CEO) — strategic planning, delegates to the two managers, can hire new \
+managers if the business grows into new areas.
+   b) ONE technical manager (CTO) — owns all technical decisions and engineering.
+   c) ONE growth/marketing manager (CMO) — owns marketing, content, sales, partnerships.
+
+   IMPORTANT — do NOT generate workers (devs, testers, designers, etc.). The managers will \
+hire them on the fly when workload demands it. Their system prompts MUST include explicit \
+hiring instructions like these:
+
+   CTO system prompt must include:
+   - "When you have tasks that need implementation, hire specialists by writing \
+@agent_name: task description. Examples: @backend_dev: Build the payment API, \
+@frontend_dev: Create the landing page, @devops: Set up CI/CD pipeline."
+   - "Always hire a @tester when code needs to be tested."
+   - "For UI/UX work, hire a @designer or @ux_ui specialist."
+   - "Don't try to do all technical work yourself — delegate to hired workers and \
+review their output."
+
+   CMO system prompt must include:
+   - "When you need content, campaigns, or design work done, hire specialists by writing \
+@agent_name: task description. Examples: @content_writer: Write blog posts about X, \
+@designer: Create social media graphics, @gtm_strategist: Research target market."
+   - "Don't try to do all marketing work yourself — delegate to hired workers."
+
+   CEO system prompt must include:
+   - "Start lean — you have a CTO and CMO. They will hire workers as needed."
+   - "If the business needs a new department (e.g. sales, finance, HR), hire a manager: \
+@sales_manager: Own outbound sales and pipeline."
+
+   General agent rules:
    - There MUST be exactly one agent with role: leader.
-   - Every worker and manager MUST have a reports_to field referencing another agent name.
+   - Every manager MUST have a reports_to field referencing another agent name.
    - The leader does NOT have reports_to.
    - Channel names must be lowercase, alphanumeric and hyphens only, max 80 chars.
    - delegates_to lists must reference actual agent names defined in the config.
-   - Use model: "opus" for the leader and any managers.
-   - Use model: "sonnet" for workers.
+   - Use model: "opus" for all 3 agents (leader + managers).
    - Each agent needs: channel, model, role, system_prompt, tools.
    - System prompts must be specific to this business — not generic placeholders.
    - Available tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
-   - Give the leader and managers: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep"
-   - Give technical workers: "Read,Glob,Grep,Bash,Edit,Write,WebFetch,WebSearch"
-   - Give non-technical workers: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep"
+   - Give all 3 agents: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep,Bash"
 
 6. If the user mentioned a codebase or repository, include a projects: section:
    projects:
@@ -87,9 +114,9 @@ Output ONLY valid YAML (no markdown fences, no explanation). Follow these rules 
      - github
 
    Auto-assign integrations to agents based on their role:
-   - Leaders/managers get: gmail, google-calendar (if enabled)
-   - Marketing/sales workers get: gmail, hubspot, notion (if enabled)
-   - Technical workers get: github, linear (if enabled)
+   - Leader gets: gmail, google-calendar (if enabled)
+   - CTO/tech manager gets: github, linear (if enabled)
+   - CMO/growth manager gets: gmail, canva, figma, gamma, notion (if enabled)
    - Override with per-agent integrations: [list] when appropriate
 
    Available integrations: {available_integrations}
@@ -98,9 +125,9 @@ Output ONLY valid YAML (no markdown fences, no explanation). Follow these rules 
 Output ONLY the YAML. No commentary, no fences."""
 
 ADD_AGENT_PROMPT = """\
-The user wants to add a new agent to their existing crew.
+A manager is hiring a new agent to join the team.
 
-User request:
+Hiring request:
 {request}
 
 Existing agents (YAML):
@@ -108,12 +135,16 @@ Existing agents (YAML):
 
 Generate ONLY a single new agent YAML block that can be inserted under the \
 agents: key. The block must:
-- Have a unique name not already in use
+- Have a unique name not already in use (use snake_case, e.g. backend_dev, content_writer)
 - Include: channel, model, role, system_prompt, tools, reports_to
 - Channel name: lowercase, alphanumeric + hyphens only, max 80 chars
 - delegates_to must only reference agents that already exist (or the new agent itself)
-- Use model "opus" for leader/manager, "sonnet" for worker
-- System prompt specific to the request
+- Use model "opus" for manager, "sonnet" for worker
+- New hires are almost always workers (role: worker) unless the request clearly needs a manager
+- System prompt must be specific to the task/domain — not generic
+- Technical workers (devs, testers, devops) get tools: "Read,Glob,Grep,Bash,Edit,Write,WebFetch,WebSearch"
+- Non-technical workers (content, design, sales) get tools: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep"
+- reports_to should be the manager who is hiring (infer from context)
 
 Output ONLY the YAML block (agent_name: followed by its config). No fences, no explanation."""
 
