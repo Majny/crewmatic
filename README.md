@@ -4,7 +4,15 @@
 
 Send a business plan to your CEO agent. It hires a team, delegates tasks, writes code, creates marketing — all autonomously.
 
-## Quickstart (2 minutes)
+## Quickstart
+
+### Prerequisites
+
+- Python 3.11+
+- [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
+- A Slack workspace ([create one free](https://slack.com/create))
+
+### 1. Install
 
 ```bash
 git clone https://github.com/Majny/crewmatic.git
@@ -12,44 +20,43 @@ cd crewmatic
 ./install.sh
 ```
 
-The install script creates a virtual environment, installs dependencies, and walks you through setup:
+The script creates a virtual environment, installs dependencies, and walks you through connecting Slack:
 
 ```
-=== Crewmatic Setup ===
+=== Slack Setup ===
 
-Step 1: Create a Slack app
+1. Go to https://api.slack.com/apps
+2. Click 'Create New App' > 'From a manifest'
+3. Select your workspace
+4. Paste the contents of slack-app-manifest.json
+5. Click 'Create'
 
-  1. Go to https://api.slack.com/apps
-  2. Click 'Create New App' > 'From a manifest'
-  3. Select your workspace
-  4. Paste the contents of slack-app-manifest.json
-  5. Click 'Create'
+Now get your tokens:
 
-Step 2: Get your tokens
+  App Token: Basic Information > App-Level Tokens > Generate
+  Paste App Token (xapp-...): ****
 
-  Paste your App Token (xapp-...): ****
-  Paste your Bot Token (xoxb-...): ****
+  Bot Token: Install App > Install to Workspace > copy
+  Paste Bot Token (xoxb-...): ****
 
-Step 3: Your Slack User ID
-  Paste your Member ID (U...): U12345678
+  Your Slack User ID: click your profile > three dots > Copy member ID
+  Paste Member ID (U...): U12345678
 
-Setup complete!
+Saved tokens to .env
 ```
 
-Then start your company:
+### 2. Start
 
 ```bash
 source .venv/bin/activate
-crewmatic run
+crewmatic setup
 ```
 
-Go to `#lead` in Slack and tell the CEO what to build.
+The wizard DMs you in Slack, asks about your business, generates `crew.yaml`, creates channels, and starts the team.
 
-## Prerequisites
+### 3. Send a business plan
 
-- Python 3.11+
-- [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
-- A Slack workspace (free plan works)
+Go to `#ceo` in Slack and tell the CEO what to build. The team starts working autonomously.
 
 ## How it works
 
@@ -106,12 +113,12 @@ No manual configuration needed — the team grows organically.
 ## CLI commands
 
 ```bash
-crewmatic init          # Interactive setup (tokens + crew.yaml)
-crewmatic run           # Start the bot
+crewmatic setup         # Recommended — Slack wizard creates team + channels + starts bot
+crewmatic run           # Start the bot (requires crew.yaml)
 crewmatic run -v        # Start with debug logging
-crewmatic setup         # Slack-guided wizard (alternative to init)
-crewmatic validate      # Check crew.yaml
-crewmatic agents        # List agents
+crewmatic init          # Manual — creates default crew.yaml + .env interactively
+crewmatic validate      # Check crew.yaml without starting
+crewmatic agents        # List configured agents
 crewmatic tasks         # Show task board
 crewmatic doctor        # Check prerequisites
 ```
