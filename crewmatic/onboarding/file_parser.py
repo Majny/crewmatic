@@ -32,6 +32,10 @@ def download_slack_file(url: str, bot_token: str) -> bytes | None:
             timeout=30,
         )
         resp.raise_for_status()
+        content_type = resp.headers.get("content-type", "")
+        if "text/html" in content_type:
+            logger.error(f"Slack returned HTML instead of file — check files:read scope. URL: {url[:80]}")
+            return None
         if len(resp.content) > MAX_FILE_SIZE:
             logger.warning(f"File too large ({len(resp.content)} bytes), skipping")
             return None
