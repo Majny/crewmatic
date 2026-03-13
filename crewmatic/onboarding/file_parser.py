@@ -5,8 +5,6 @@ import os
 import tempfile
 from pathlib import Path
 
-import requests
-
 logger = logging.getLogger(__name__)
 
 # Max file size to process (10 MB)
@@ -27,6 +25,7 @@ def download_slack_file(url: str, bot_token: str) -> bytes | None:
         Raw file bytes, or None on failure.
     """
     try:
+        import requests
         resp = requests.get(
             url,
             headers={"Authorization": f"Bearer {bot_token}"},
