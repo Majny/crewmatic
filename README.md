@@ -1,137 +1,134 @@
 # Crewmatic
 
-**Your first AI company** — Open-source multi-agent framework that runs your business autonomously via Slack + Claude.
+**Your first AI company** — open-source framework that runs an autonomous AI team via Slack + Claude CLI.
 
-Tell the bot about your business in Slack. It builds your AI team, creates channels, and starts working — autonomously.
+Send a business plan to your CEO agent. It hires a team, delegates tasks, writes code, creates marketing — all autonomously.
+
+## Quickstart (2 minutes)
+
+```bash
+git clone https://github.com/Majny/crewmatic.git
+cd crewmatic
+./install.sh
+```
+
+The install script creates a virtual environment, installs dependencies, and walks you through setup:
 
 ```
-pip install crewmatic
-crewmatic setup
-# The bot DMs you in Slack and walks you through everything
+=== Crewmatic Setup ===
+
+Step 1: Create a Slack app
+
+  1. Go to https://api.slack.com/apps
+  2. Click 'Create New App' > 'From a manifest'
+  3. Select your workspace
+  4. Paste the contents of slack-app-manifest.json
+  5. Click 'Create'
+
+Step 2: Get your tokens
+
+  Paste your App Token (xapp-...): ****
+  Paste your Bot Token (xoxb-...): ****
+
+Step 3: Your Slack User ID
+  Paste your Member ID (U...): U12345678
+
+Setup complete!
 ```
+
+Then start your company:
+
+```bash
+source .venv/bin/activate
+crewmatic run
+```
+
+Go to `#lead` in Slack and tell the CEO what to build.
+
+## Prerequisites
+
+- Python 3.11+
+- [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
+- A Slack workspace (free plan works)
 
 ## How it works
 
 ```
-┌─────────┐     ┌────────────┐     ┌──────────┐
-│  Leader  │────>│ Task Board │────>│ Workers  │
-│ (plans)  │     │  (JSON)    │<────│(execute) │
-└─────────┘     └────────────┘     └──────────┘
-     │                                    │
-     └──────── Slack channels ────────────┘
+You: "Build a SaaS for restaurant analytics"
+        │
+        ▼
+   ┌─────────┐     ┌────────────┐     ┌──────────┐
+   │   CEO   │────>│ Task Board │────>│ Workers  │
+   │ (plans) │     │            │<────│(execute) │
+   └─────────┘     └────────────┘     └──────────┘
+        │                                    │
+        ├── hires @cfo, @sales_rep...       │
+        └──────── Slack channels ───────────┘
 ```
 
-1. **Leader** agent plans work and creates tasks on the board
-2. **Worker** agents claim tasks, execute them via Claude CLI, post results
-3. **Delegation** — agents can delegate sub-tasks to each other (`@agent: task`)
-4. **Memory** — each agent has a persistent markdown memory file
-5. **Reports** — scheduled progress reports at configured hours
+1. **CEO** receives your business plan, breaks it into tasks, delegates
+2. **CTO** hires developers and testers as needed, manages code quality
+3. **CMO** researches markets, creates content using Canva/Gamma/Figma
+4. **Workers** claim tasks, execute via Claude CLI, report results
+5. **Auto-hiring** — agents create new roles on the fly when workload demands it
+6. **Self-correction** — workers escalate blockers, managers reassess strategy
 
-## Getting Started
+### Dynamic team
 
-### 1. Install and connect Slack
-
-```bash
-pip install crewmatic
-```
-
-Create a Slack app using the included manifest:
-
-1. Go to [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → **From a manifest**
-2. Select your workspace, paste the contents of [`slack-manifest.yaml`](slack-manifest.yaml), and click **Create**
-3. Click **Install to Workspace** and authorize
-4. Copy **Bot User OAuth Token** (`xoxb-...`) from **OAuth & Permissions**
-5. Generate an **App-Level Token** with the `connections:write` scope under **Basic Information** → **App-Level Tokens** — copy the `xapp-...` token
-6. Get your Slack user ID: open your profile → click the three dots → **Copy member ID**
-
-```bash
-export SLACK_BOT_TOKEN="xoxb-..."
-export SLACK_APP_TOKEN="xapp-..."
-export OWNER_SLACK_ID="U01234567"
-```
-
-You also need [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated, and Python 3.11+.
-
-### 2. Run the setup wizard
-
-```bash
-crewmatic setup
-```
-
-The bot DMs you in Slack and walks you through everything:
+Start with 3 agents (CEO, CTO, CMO). They hire more as needed:
 
 ```
-You: I run an e-commerce store selling handmade jewelry.
-     I need help with product descriptions, SEO, and customer support.
+CEO writes: @sales_rep: Build a list of 50 target companies and start outreach
+→ system auto-creates sales_rep agent, Slack channel, starts working
 
-Crewmatic: Great! I'll set up your team. A few questions:
-           - Do you have a website/codebase I should know about?
-           - Any specific tools or platforms you use?
-
-You: We use Shopify, and our site is mystore.com
-
-Crewmatic: Here's your proposed AI team:
-
-           👑 MANAGER (#manager) — coordinates the team
-           ✏️ CONTENT_WRITER (#content-writer) — product descriptions
-           🔍 SEO_SPECIALIST (#seo) — search optimization
-           💬 SUPPORT_AGENT (#support) — customer inquiries
-
-           [Create this team] [Make changes] [Start over]
+CTO writes: @tester: Write integration tests for the payment API
+→ system auto-creates tester agent, assigns first task
 ```
 
-Hit **Create this team** — Crewmatic creates the Slack channels, generates your `crew.yaml`, and starts the agents.
+No manual configuration needed — the team grows organically.
 
-### 3. Evolve your team
+## Slack commands
 
-Need more help later? Just ask:
-
-```
-@crewmatic: I need a designer
-```
-
-The bot adds the agent, creates the channel, and integrates it with your existing team.
+| Command | Description |
+|---------|-------------|
+| `tasks` | Show task board |
+| `team` | Show current team structure |
+| `costs` | Show cost tracker (per agent, per day) |
+| `report` | Run progress report |
+| `standup` | Run team standup |
+| `my tasks` | Tasks for this channel's agent |
+| `cancel #42 reason` | Cancel a task |
+| `start <project>` | Activate a project |
+| `stop` | Stop current project |
+| `status` | Project status |
+| `help` | List all commands |
 
 ## CLI commands
 
 ```bash
-crewmatic setup             # Slack-guided setup wizard
-crewmatic run               # Start the bot (auto-runs setup if no config)
-crewmatic run -v            # Start with debug logging
-crewmatic init              # Create crew.yaml scaffold (manual setup)
-crewmatic validate          # Check crew.yaml without starting
-crewmatic agents            # List configured agents
-crewmatic tasks             # Show task board
-crewmatic tasks --all       # Include completed tasks
-crewmatic doctor            # Check prerequisites
+crewmatic init          # Interactive setup (tokens + crew.yaml)
+crewmatic run           # Start the bot
+crewmatic run -v        # Start with debug logging
+crewmatic setup         # Slack-guided wizard (alternative to init)
+crewmatic validate      # Check crew.yaml
+crewmatic agents        # List agents
+crewmatic tasks         # Show task board
+crewmatic doctor        # Check prerequisites
 ```
 
-## Slack commands
+## Integrations (24 services)
 
-Message any agent channel or mention the bot:
+Three tiers — zero to full setup:
 
-| Command | Description |
-|---------|-------------|
-| `standup` | Run team standup |
-| `report` | Run progress report |
-| `tasks` | Show task board |
-| `my tasks` | Show tasks for this channel's agent |
-| `cancel #42 reason` | Cancel a task |
-| `start <project>` | Activate a project |
-| `stop` | Stop current project |
-| `status` | Show project status |
-| `run <workflow>: desc` | Start a workflow pipeline |
-| `workflows` | List available workflows |
-| `workflow status` | Show active runs |
-| `help` | List commands |
+| Tier | Setup | Examples |
+|------|-------|----------|
+| **Claude.ai MCP** | Zero setup | Figma, Canva, Gamma, Notion, Gmail, Calendar, PostHog, Cloudflare, Miro, Granola |
+| **CLI tools** | Token in .env | GitHub (`gh`), AWS (`aws`), Stripe (`stripe`) |
+| **Local MCP** | Auto-configured | PostgreSQL, custom servers |
 
-## Advanced: Manual Configuration
+Agents automatically get the right tools based on their role and integrations configured in `crew.yaml`.
 
-If you prefer to configure everything by hand, skip the wizard and edit `crew.yaml` directly:
-
-```bash
-crewmatic init        # creates crew.yaml scaffold
-```
+## Configuration
 
 Everything lives in `crew.yaml`:
 
@@ -145,41 +142,48 @@ slack:
 owner:
   slack_id: ${OWNER_SLACK_ID}
 
-agents:
-  lead:
-    channel: "lead"           # Slack channel
-    model: "opus"             # Claude model (opus/sonnet/haiku)
-    role: "leader"            # leader | manager | worker
-    tools: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep"
-    delegates_to: [dev, marketer]
-    system_prompt: |
-      You are the Lead. You run this company autonomously.
-      Delegate tasks using @dev: or @marketer: format.
+integrations: [github, gmail, notion, figma, canva, gamma]
 
-  dev:
-    channel: "dev"
+agents:
+  ceo:
+    channel: "ceo"
+    model: "opus"
+    role: "leader"
+    delegates_to: [cto, cmo]
+    system_prompt: |
+      You are the CEO. Run this company autonomously...
+
+  cto:
+    channel: "cto"
+    model: "opus"
+    role: "manager"
+    reports_to: ceo
+    integrations: [github]
+    system_prompt: |
+      You are the CTO. Own all technical decisions...
+
+  cmo:
+    channel: "cmo"
     model: "sonnet"
     role: "worker"
-    tools: "Read,Glob,Grep,Bash,Edit,Write"
-    reports_to: lead
+    reports_to: ceo
+    integrations: [gmail, canva, gamma, figma]
     system_prompt: |
-      You are a Developer. Implement features, fix bugs.
+      You are the CMO. Marketing, growth, content...
 
 projects:
   my-app:
     name: "My App"
-    codebase: "/path/to/project"
-    context: |
-      Tech stack, current status, priorities...
+    codebase: "/path/to/repo"
 ```
 
 ### Agent roles
 
 | Role | What it does |
 |------|-------------|
-| `leader` | Runs planning loops, creates tasks, sends reports |
-| `manager` | Gets team channel visibility, can delegate to sub-team |
-| `worker` | Picks tasks from the board, executes, reports results |
+| `leader` | Plans work, delegates, sends reports, hires new agents |
+| `manager` | Reviews worker output (approve/reject), can hire sub-team |
+| `worker` | Picks tasks from board, executes, reports results |
 
 ### Settings
 
@@ -187,72 +191,45 @@ projects:
 |---------|---------|-------------|
 | `max_concurrent_agents` | 4 | Max parallel Claude CLI processes |
 | `worker_poll_interval` | 60 | Seconds between task board checks |
-| `planning_interval` | 1800 | Seconds between planning runs (when board is full) |
-| `planning_threshold` | 3 | Plan more work when open tasks < this |
-| `report_hours` | [9, 16, 22] | Hours to send scheduled reports |
+| `planning_interval` | 1800 | Seconds between planning runs |
+| `planning_threshold` | 3 | Plan more when open tasks < this |
+| `report_hours` | [9, 16, 22] | Hours for scheduled reports |
 | `stuck_timeout_minutes` | 10 | Reset stuck tasks after this |
-| `skip_permissions` | true | Pass `--dangerously-skip-permissions` to Claude CLI |
-
-### Optional: Per-agent bot identities
-
-Each agent can have its own Slack bot identity:
-
-```bash
-export SLACK_BOT_TOKEN_CEO="xoxb-..."
-export SLACK_BOT_TOKEN_CTO="xoxb-..."
-```
-
-## Context injection
-
-Agents automatically receive relevant context:
-
-- **Memory** — persistent per-agent `.md` files in `memory/`
-- **Project context** — from `crew.yaml` projects section
-- **Task board** — current open tasks
-- **Slack channels** — recent messages from team channels (for leaders/managers)
-- **Business context** — files in `context/` directory + Slack #context channel
-
-## Examples
-
-See `examples/` for ready-to-use configurations:
-
-- **[startup](examples/startup/)** — Full AI company (9 agents: CEO, CTO, CMO, CPO, CFO, DevOps, Backend, UX/UI, Tester)
-- **[dev-team](examples/dev-team/)** — Minimal dev team (3 agents: Lead, Frontend, Backend)
-
-## How is this different from CrewAI?
-
-| | Crewmatic | CrewAI |
-|---|-----------|--------|
-| **Communication** | Slack (real-time, human-in-the-loop) | In-process Python |
-| **LLM** | Claude CLI (all MCP tools, sessions) | OpenAI API / any LLM |
-| **Persistence** | JSON task board + markdown memory | In-memory by default |
-| **Autonomy** | Fully autonomous loops (planning, execution, reporting) | Single workflow runs |
-| **Config** | Single YAML file | Python code |
-| **Best for** | Running an autonomous AI team 24/7 | One-off multi-agent workflows |
-
-Crewmatic is designed for **long-running autonomous teams**, not one-shot pipelines. Your agents plan their own work, execute it, report back, and keep going — all visible in Slack.
-
-## Security
-
-When agents have `tools` configured, Crewmatic passes `--dangerously-skip-permissions` to Claude CLI so agents can use Read/Write/Edit/Bash tools without interactive prompts. This means agents have **full access** to the filesystem within their working directory.
-
-To disable this, set `skip_permissions: false` in your `crew.yaml` settings. Note that agents won't be able to use file/shell tools in this mode.
 
 ## Architecture
 
 ```
 crewmatic/
-├── config.py          # YAML loading + validation
-├── agent_loader.py    # Agent definitions → dataclass
-├── claude_runner.py   # Claude CLI subprocess execution
-├── context.py         # Memory + Slack + local context injection
-├── delegation.py      # @agent: task pattern parsing
+├── bot.py             # Slack orchestration — wires everything together
 ├── scheduler.py       # Planning, worker, and report loops
+├── delegation.py      # @agent: task parsing + auto-hire detection
 ├── task_manager.py    # JSON task board with atomic operations
+├── cost_tracker.py    # Per-agent cost tracking
+├── integrations.py    # 24-service catalog (Claude.ai MCP + CLI + local)
+├── claude_runner.py   # Claude CLI subprocess with concurrency control
+├── context.py         # Memory + context injection
+├── agent_loader.py    # crew.yaml → AgentConfig
+├── config.py          # YAML loading + validation
 ├── project_manager.py # Multi-project context switching
-├── bot.py             # Slack orchestration engine
-└── cli.py             # CLI entry point
+├── guardrails.py      # Circuit breaker + execution guard
+├── workflows.py       # Multi-step workflow pipelines
+└── onboarding/        # Slack setup wizard + crew generator
 ```
+
+## Safety
+
+- **Circuit breaker** — agents auto-pause after consecutive failures
+- **Manager review gate** — worker output verified before marking complete
+- **Escalation** — workers flag blockers instead of looping
+- **Cost tracking** — per-agent, per-day spend estimates in reports
+- **Loop prevention** — cooldowns between bot messages
+
+When agents have `tools` configured, Crewmatic passes `--dangerously-skip-permissions` to Claude CLI. Set `skip_permissions: false` in settings to disable.
+
+## Examples
+
+- **[startup](examples/startup/)** — AI company with CEO, CTO, CMO (dynamic hiring enabled)
+- **[dev-team](examples/dev-team/)** — Minimal dev team (Lead, Frontend, Backend)
 
 ## License
 
