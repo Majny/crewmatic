@@ -111,6 +111,59 @@ class ChannelManager:
 
         return created
 
+    def post_welcome_message(
+        self,
+        channel_id: str,
+        channel_name: str,
+        agent_name: str,
+        role: str,
+    ) -> bool:
+        """Post and pin a welcome message in a newly created agent channel.
+
+        Args:
+            channel_id: Slack channel ID.
+            channel_name: Human-readable channel name (without ``#``).
+            agent_name: Display name for the agent (e.g. ``CEO``).
+            role: Agent role — ``leader``, ``manager``, or ``worker``.
+
+        Returns:
+            True if the message was posted (pin failure is non-critical).
+        """
+        role_descriptions = {
+            "leader": "Sets strategy, delegates work to the team, and reports progress to you.",
+            "manager": "Manages technical decisions, reviews work, and coordinates the dev team.",
+            "worker": "Executes tasks assigned by the team leads.",
+        }
+        description = role_descriptions.get(role, role_descriptions["worker"])
+        display_name = agent_name.upper()
+
+        text = (
+            f"Welcome to #{channel_name}\n\n"
+            f"This channel is operated by *{display_name}* ({role}).\n\n"
+            f"{description}\n\n"
+            f"*How to interact:*\n"
+            f"• Send a message here to talk to {display_name}\n"
+            f"• Type `tasks` to see the task board\n"
+            f"• Type `help` for all commands\n\n"
+            f"{display_name} will also work autonomously — check back for updates."
+        )
+
+        try:
+            result = self.client.chat_postMessage(channel=channel_id, text=text)
+            message_ts = result["ts"]
+
+            # Pin the welcome message
+            try:
+                self.client.pins_add(channel=channel_id, timestamp=message_ts)
+            except SlackApiError as exc:
+                logger.warning(f"Failed to pin welcome message in #{channel_name}: {exc}")
+
+            logger.info(f"Posted welcome message in #{channel_name}")
+            return True
+        except SlackApiError as exc:
+            logger.error(f"Failed to post welcome message in #{channel_name}: {exc}")
+            return False
+
     def join_channel(self, channel_id: str) -> bool:
         """Join an existing channel.
 

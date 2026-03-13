@@ -262,7 +262,7 @@ class SetupWizard:
         session.state = SetupState.AWAITING_DETAILS
 
         say(
-            text="Got it! Let me think of a few follow-up questions...",
+            text="*Step 2/5 — A few more questions*\n\nGot it! Let me think of a few follow-up questions...",
             channel=channel_id,
             thread_ts=thread_ts,
         )
@@ -307,7 +307,7 @@ class SetupWizard:
     ):
         """Generate crew.yaml from session context and show proposal."""
         say(
-            text="Thanks! Generating your AI team configuration...",
+            text="*Step 4/5 — Review your team*\n\nThanks! Generating your AI team configuration...",
             channel=channel_id,
             thread_ts=thread_ts,
         )
@@ -367,19 +367,21 @@ class SetupWizard:
 
         options = []
         initial_options = []
-        for name in sorted(all_integrations):
+        for integration in sorted(all_integrations, key=lambda i: i["key"]):
+            key = integration["key"]
             option = {
-                "text": {"type": "plain_text", "text": name},
-                "value": name,
+                "text": {"type": "plain_text", "text": key},
+                "description": {"type": "plain_text", "text": integration.get("description", "")},
+                "value": key,
             }
             options.append(option)
-            if name in suggested:
+            if key in suggested:
                 initial_options.append(option)
 
         blocks: list[dict] = [
             {
                 "type": "header",
-                "text": {"type": "plain_text", "text": "Select integrations"},
+                "text": {"type": "plain_text", "text": "Step 3/5 — Choose integrations"},
             },
             {
                 "type": "section",
@@ -422,7 +424,7 @@ class SetupWizard:
         ]
 
         say(
-            text="Select the integrations you want your AI team to use:",
+            text="*Step 3/5 — Choose integrations*\n\nSelect the integrations you want your AI team to use:",
             blocks=blocks,
             channel=channel_id,
             thread_ts=thread_ts,
@@ -524,7 +526,7 @@ class SetupWizard:
         blocks: list[dict] = [
             {
                 "type": "header",
-                "text": {"type": "plain_text", "text": f"Proposed crew: {crew_name}"},
+                "text": {"type": "plain_text", "text": f"Step 4/5 — Review your team: {crew_name}"},
             },
             {"type": "divider"},
         ]
@@ -572,7 +574,7 @@ class SetupWizard:
         })
 
         # Also post the raw YAML in a collapsible snippet
-        say(text=f"Here's your proposed crew config:", blocks=blocks, channel=channel_id, thread_ts=thread_ts)
+        say(text=f"*Step 4/5 — Review your team*\n\nHere's your proposed crew config:", blocks=blocks, channel=channel_id, thread_ts=thread_ts)
 
         # Post YAML as a snippet for review
         try:
@@ -604,7 +606,7 @@ class SetupWizard:
         session.state = SetupState.CREATING
 
         say(
-            text="Setting up your AI team — creating channels and saving config...",
+            text="*Step 5/5 — Creating your team*\n\nSetting up your AI team — creating channels and saving config...",
             channel=channel_id,
             thread_ts=thread_ts,
         )
@@ -627,7 +629,22 @@ class SetupWizard:
                     thread_ts=thread_ts,
                 )
 
-        channel_mgr.create_channels_for_crew(session.proposed_config, progress_callback=_progress)
+        created_channels = channel_mgr.create_channels_for_crew(
+            session.proposed_config, progress_callback=_progress,
+        )
+
+        # 1b. Post pinned welcome messages in each created channel
+        agents = session.proposed_config.get("agents", {})
+        for agent_name, agent_def in agents.items():
+            channel_name = agent_def.get("channel", agent_name)
+            if channel_name in created_channels:
+                role = agent_def.get("role", "worker")
+                channel_mgr.post_welcome_message(
+                    channel_id=created_channels[channel_name],
+                    channel_name=channel_name,
+                    agent_name=agent_name,
+                    role=role,
+                )
 
         # 2. Save crew.yaml
         try:
@@ -655,6 +672,9 @@ class SetupWizard:
             thread_ts=thread_ts,
         )
 
+        # 3b. Send getting-started guide as a DM to the owner
+        self._send_getting_started_dm()
+
         # 4. Trigger on_complete callback (e.g. auto-start the full bot)
         if self.on_complete:
             def _delayed_complete():
@@ -665,6 +685,41 @@ class SetupWizard:
                     logger.error(f"on_complete callback failed: {exc}")
 
             threading.Thread(target=_delayed_complete, daemon=True, name="setup-complete").start()
+
+    def _send_getting_started_dm(self):
+        """Send a getting-started guide as a DM to the owner after setup completes."""
+        if not self.owner_slack_id:
+            return
+
+        getting_started_message = (
+            "Your AI company is live! Here's how to get started:\n\n"
+            "*1. Send your business plan*\n"
+            "Go to #ceo (or your leader's channel) and describe what you want to build. "
+            "Upload docs, pitch decks, or specs — the more context, the better.\n\n"
+            "*2. Watch your team work*\n"
+            "Your CEO will immediately break down the plan and delegate to the team. "
+            "Check each agent's channel to see progress.\n\n"
+            "*3. Key commands*\n"
+            "\u2022 `tasks` \u2014 See the task board\n"
+            "\u2022 `report` \u2014 Get a progress report\n"
+            "\u2022 `standup` \u2014 Run a team standup\n"
+            "\u2022 `help` \u2014 All available commands\n\n"
+            "*4. Tips*\n"
+            "\u2022 Be specific when talking to agents \u2014 \"Build a landing page with pricing section\" "
+            "works better than \"make a website\"\n"
+            "\u2022 Upload reference files (competitor sites, design mockups, specs) to give agents context\n"
+            "\u2022 Your CEO reports automatically at the scheduled hours \u2014 just check #ceo\n\n"
+            "You're the investor. Give direction, your AI team handles execution."
+        )
+
+        try:
+            self.app.client.chat_postMessage(
+                channel=self.owner_slack_id,
+                text=getting_started_message,
+            )
+            logger.info(f"Sent getting-started guide to owner {self.owner_slack_id}")
+        except Exception as exc:
+            logger.error(f"Failed to send getting-started DM: {exc}")
 
     def _handle_restart(self, session: SetupSession, channel_id: str, thread_ts: str, say: Callable):
         """Reset the session back to the beginning."""
