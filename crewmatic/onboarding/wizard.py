@@ -504,8 +504,10 @@ class SetupWizard:
         setup_msg = current.get("setup_message", f"Please provide credentials for {current['name']}.")
 
         remaining = len(session.pending_credentials)
+        total = remaining + len(session.collected_credentials)
+        current_num = total - remaining + 1
         say(
-            text=f"*Step 3b/{remaining} remaining* — {setup_msg}",
+            text=f"*Connecting {current_num}/{total}* — {setup_msg}",
             channel=channel_id,
             thread_ts=thread_ts,
         )

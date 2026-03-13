@@ -22,7 +22,14 @@ design their AI crew. Focus on:
 - Preferred communication style (formal reports vs casual updates)
 
 Keep it conversational and friendly. Do NOT generate any YAML yet.
-Respond in the same language as the user."""
+Respond in the same language as the user.
+
+IMPORTANT formatting rules (this will be posted to Slack):
+- Use *bold* (single asterisk), NOT **bold** (double asterisk)
+- Use _italic_ (single underscore), NOT __italic__
+- Do NOT use markdown headings (## or ###)
+- Use numbered lists like: 1. text (no bold on the number)
+- Keep it concise — no emoji overload"""
 
 CREW_GENERATION_PROMPT = """\
 Based on the following business description and technical details, generate a \

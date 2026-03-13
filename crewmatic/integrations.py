@@ -105,14 +105,12 @@ CATALOG = {
     "gmail": {
         "name": "Gmail",
         "description": "Send and read emails, draft outreach",
-        "env_vars": ["GMAIL_APP_PASSWORD", "GMAIL_ADDRESS"],
+        "env_vars": [],
         "setup_message": (
             "*Connect Gmail*\n\n"
-            "1. Go to <https://myaccount.google.com/apppasswords|Google App Passwords>\n"
-            "   (requires 2FA enabled on your Google account)\n"
-            "2. Create a new app password for `crewmatic`\n"
-            "3. *Paste the 16-character password here*\n"
-            "4. I'll ask for your Gmail address next"
+            "Gmail works automatically via Claude.ai — no credentials needed!\n"
+            "Your agents will be able to read and send emails.\n"
+            "Type `skip` to continue."
         ),
         "agent_instructions": (
             "You have email access via SMTP. Use Python to send:\n"
@@ -145,13 +143,12 @@ CATALOG = {
     "google-calendar": {
         "name": "Google Calendar",
         "description": "Schedule meetings, check availability",
-        "env_vars": ["GOOGLE_OAUTH_CREDENTIALS"],
+        "env_vars": [],
         "setup_message": (
             "*Connect Google Calendar*\n\n"
-            "1. Go to <https://console.cloud.google.com/apis/credentials|Google Cloud Console>\n"
-            "2. Create OAuth 2.0 credentials (Desktop app)\n"
-            "3. Download the JSON file\n"
-            "4. *Paste the JSON content here*"
+            "Google Calendar works automatically via Claude.ai — no credentials needed!\n"
+            "Your agents will be able to check availability and create events.\n"
+            "Type `skip` to continue."
         ),
         "agent_instructions": (
             "You have Google Calendar access via the API. Use curl or Python google-auth."
@@ -163,12 +160,11 @@ CATALOG = {
     "google-drive": {
         "name": "Google Drive",
         "description": "Read, search, manage files and docs",
-        "env_vars": ["GOOGLE_OAUTH_CREDENTIALS"],
+        "env_vars": [],
         "setup_message": (
             "*Connect Google Drive*\n\n"
-            "Uses the same Google OAuth credentials as Calendar.\n"
-            "If you already connected Google Calendar, type `skip`.\n"
-            "Otherwise, follow the same OAuth setup steps."
+            "Google Drive works automatically via Claude.ai — no credentials needed!\n"
+            "Type `skip` to continue."
         ),
         "agent_instructions": "You have Google Drive access via the API.",
         "auto_roles": [],
@@ -179,14 +175,12 @@ CATALOG = {
     "notion": {
         "name": "Notion",
         "description": "Pages, databases, wiki, knowledge base",
-        "env_vars": ["NOTION_TOKEN"],
+        "env_vars": [],
         "setup_message": (
             "*Connect Notion*\n\n"
-            "1. Go to <https://www.notion.so/my-integrations|notion.so/my-integrations>\n"
-            "2. Click *New integration*, select your workspace\n"
-            "3. Copy the *Internal Integration Secret*\n"
-            "4. *Paste it here*\n\n"
-            "Then share the pages you want accessible with this integration."
+            "Notion works automatically via Claude.ai — no credentials needed!\n"
+            "Your agents will be able to read and create Notion pages.\n"
+            "Type `skip` to continue."
         ),
         "agent_instructions": (
             "You have Notion access. Use the API:\n"
@@ -330,13 +324,12 @@ CATALOG = {
     "posthog": {
         "name": "PostHog",
         "description": "Product analytics, feature flags, experiments",
-        "env_vars": ["POSTHOG_API_KEY", "POSTHOG_PROJECT_ID"],
+        "env_vars": [],
         "setup_message": (
             "*Connect PostHog*\n\n"
-            "1. Go to PostHog → *Settings* → *Personal API Keys*\n"
-            "2. Create a new key\n"
-            "3. *Paste it here*\n"
-            "4. I'll ask for your project ID next"
+            "PostHog works automatically via Claude.ai — no credentials needed!\n"
+            "Your agents will be able to query analytics and manage feature flags.\n"
+            "Type `skip` to continue."
         ),
         "agent_instructions": (
             "You have PostHog access. Use the API:\n"
@@ -352,13 +345,12 @@ CATALOG = {
     "cloudflare": {
         "name": "Cloudflare",
         "description": "DNS, Workers, R2, D1, KV",
-        "env_vars": ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"],
+        "env_vars": [],
         "setup_message": (
             "*Connect Cloudflare*\n\n"
-            "1. Go to <https://dash.cloudflare.com/profile/api-tokens|Cloudflare API Tokens>\n"
-            "2. Create a token with appropriate permissions\n"
-            "3. *Paste the token here*\n"
-            "4. I'll ask for your account ID next"
+            "Cloudflare works automatically via Claude.ai — no credentials needed!\n"
+            "Your agents will be able to manage Workers, R2, D1, and KV.\n"
+            "Type `skip` to continue."
         ),
         "agent_instructions": (
             "You have Cloudflare access. Use `wrangler` CLI or the API:\n"
