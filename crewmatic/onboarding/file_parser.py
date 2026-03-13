@@ -172,13 +172,8 @@ def _extract_plain(data: bytes) -> str:
 def _extract_pdf(data: bytes) -> str:
     """Extract text from PDF using pypdf."""
     try:
-        from pypdf import PdfReader
-    except ImportError:
-        logger.warning("pypdf not installed — install with: pip install crewmatic[docs]")
-        return "[PDF file uploaded but pypdf is not installed. Install with: pip install crewmatic[docs]]"
-
-    try:
         import io
+        from pypdf import PdfReader
         reader = PdfReader(io.BytesIO(data))
         pages = []
         for page in reader.pages:
@@ -194,13 +189,8 @@ def _extract_pdf(data: bytes) -> str:
 def _extract_docx(data: bytes) -> str:
     """Extract text from DOCX using python-docx."""
     try:
-        from docx import Document
-    except ImportError:
-        logger.warning("python-docx not installed — install with: pip install crewmatic[docs]")
-        return "[DOCX file uploaded but python-docx is not installed. Install with: pip install crewmatic[docs]]"
-
-    try:
         import io
+        from docx import Document
         doc = Document(io.BytesIO(data))
         paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
         return "\n\n".join(paragraphs)
