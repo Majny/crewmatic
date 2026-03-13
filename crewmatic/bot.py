@@ -300,7 +300,7 @@ class CrewmaticBot:
             receives_context=agent.receives_context,
             memory_dir=self.config["memory_dir"],
             context_dir=self.config["context_dir"],
-            task_summary=self.task_manager.get_summary(),
+            task_summary=self.task_manager.get_summary(include_done=agent.role == "leader"),
             client=self.app.client,
             channel_name_to_id=self.channel_name_to_id,
             project_context=project_ctx,
@@ -418,7 +418,7 @@ class CrewmaticBot:
 
         logger.info(f"Auto-hiring: {hiring_manager} wants to create agent '{new_agent_name}' for: {first_task[:80]}")
 
-        self.post(
+        self.post_to_channel(
             manager.channel,
             f"Hiring *{new_agent_name.upper()}* for the team...",
             agent_name=hiring_manager,
@@ -454,7 +454,7 @@ class CrewmaticBot:
 
         except Exception as e:
             logger.error(f"Auto-hire failed for {new_agent_name}: {e}")
-            self.post(
+            self.post_to_channel(
                 manager.channel,
                 f"Failed to hire {new_agent_name.upper()}: {e}",
                 agent_name=hiring_manager,
@@ -688,16 +688,21 @@ class CrewmaticBot:
         """Run agent call in background thread."""
         try:
             response = self.call_agent(agent_name, text, context)
-            max_len = self.settings.get("slack_max_length", 39000)
-            if len(response) > max_len:
-                response = response[:max_len] + "\n\n... (truncated)"
-            kwargs = {"channel": channel_id, "text": response}
-            if thread_ts:
-                kwargs["thread_ts"] = thread_ts
-            client = self.get_agent_client(agent_name)
-            client.chat_postMessage(**kwargs)
-            with self._bot_msg_lock:
-                self.recent_bot_messages[channel_id] = time.time()
+            channel_name = self.get_channel_name(channel_id)
+            if channel_name:
+                self.post_to_channel(channel_name, response, thread_ts=thread_ts, agent_name=agent_name)
+            else:
+                # Fallback to raw post if channel name unknown
+                max_len = self.settings.get("slack_max_length", 39000)
+                if len(response) > max_len:
+                    response = response[:max_len] + "\n\n... (truncated)"
+                kwargs = {"channel": channel_id, "text": f"*{agent_name.upper()}*: {response}"}
+                if thread_ts:
+                    kwargs["thread_ts"] = thread_ts
+                client = self.get_agent_client(agent_name)
+                client.chat_postMessage(**kwargs)
+                with self._bot_msg_lock:
+                    self.recent_bot_messages[channel_id] = time.time()
             self._handle_delegations(agent_name, response)
         except CircuitBrokenError as e:
             logger.error(f"Circuit breaker tripped for {agent_name}: {e}")
@@ -757,8 +762,11 @@ class CrewmaticBot:
 
         cmd_response = self.handle_command(text, channel_name)
         if cmd_response:
-            client = self.get_agent_client(agent_name)
-            client.chat_postMessage(channel=channel_id, text=cmd_response, thread_ts=thread_ts)
+            if channel_name:
+                self.post_to_channel(channel_name, cmd_response, thread_ts=thread_ts, agent_name=agent_name)
+            else:
+                client = self.get_agent_client(agent_name)
+                client.chat_postMessage(channel=channel_id, text=cmd_response, thread_ts=thread_ts)
             return
 
         logger.info(f"{'Mention' if is_mention else 'Message'} -> {agent_name} in #{channel_name}: {text[:80]}")

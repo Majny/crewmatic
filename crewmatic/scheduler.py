@@ -31,6 +31,11 @@ WHAT TO DO NOW:
 DELEGATING TASKS (existing team):
 {delegation_format}
 
+You can set priority by adding [HIGH] or [LOW] before the description:
+@agent [HIGH]: Fix critical auth bug immediately
+@agent [LOW]: Update documentation when free
+@agent: Normal priority task (default: medium)
+
 HIRING NEW TEAM MEMBERS:
 If you need a role that doesn't exist yet, just delegate to it:
 @sales_rep: Build a list of 50 target companies and start cold outreach
@@ -197,6 +202,13 @@ class Scheduler:
         self.post(leader.channel, response, agent_name=leader.name)
         self.handle_delegations(leader.name, response)
 
+        # Persist standup synthesis to leader memory
+        memory_dir = self.config.get("memory_dir", "./memory")
+        append_agent_memory(
+            leader.name, memory_dir,
+            f"Standup synthesis:\n{response[:500]}",
+        )
+
     def run_report(self):
         """Leader sends a progress report to the owner."""
         leader = get_leader(self.agents)
@@ -263,6 +275,13 @@ class Scheduler:
                     task_details=task.get("details", "None"),
                     created_by=task.get("created_by", "leader").upper(),
                 )
+                # Include rejection feedback if this task was previously rejected
+                rejection = task.get("rejection_feedback", "")
+                if rejection:
+                    exec_prompt += (
+                        f"\n\nPREVIOUS ATTEMPT WAS REJECTED. Manager feedback:\n{rejection}\n"
+                        f"Address this feedback in your new attempt."
+                    )
                 response = self.call_agent(agent_name, exec_prompt)
 
                 # Check for stale claim
@@ -375,7 +394,7 @@ class Scheduler:
                 # If reviewer didn't re-delegate, reset the original task so worker retries
                 delegations = parse_delegations(review, set(self.agents.keys()))
                 if not delegations:
-                    self.task_manager.reset_task(task_id)
+                    self.task_manager.reset_task(task_id, feedback=review[:500])
                 return False
 
             # Approved (default if unclear)
@@ -388,8 +407,16 @@ class Scheduler:
             return True
 
         except Exception as e:
-            # If review fails, auto-approve to avoid blocking
-            logger.warning(f"Review by {reviewer_name} failed: {e}. Auto-approving.")
+            # If review fails, escalate to leader instead of blindly approving
+            logger.warning(f"Review by {reviewer_name} failed: {e}. Escalating to leader.")
+            leader = get_leader(self.agents)
+            if leader and leader.name != reviewer_name:
+                self.post(
+                    leader.channel,
+                    f"Review by {reviewer_name.upper()} failed for task #{task_id}: {e}\n"
+                    f"Task auto-approved — please verify.",
+                    agent_name=reviewer_name,
+                )
             return True
 
     def planning_loop(self):

@@ -121,6 +121,29 @@ def parse_unknown_delegations(response: str, known_names: set[str]) -> list[tupl
     return results
 
 
+_PRIORITY_PATTERN = re.compile(
+    r"\[?(HIGH|CRITICAL|URGENT|LOW)\]?\s*:?\s*",
+    re.IGNORECASE,
+)
+
+
+def _extract_priority(task_desc: str) -> tuple[str, str]:
+    """Extract priority from task description if present.
+
+    Returns (cleaned_desc, priority). Priority defaults to "medium".
+    Recognizes: [HIGH], [CRITICAL], [URGENT] → "high", [LOW] → "low".
+    """
+    m = _PRIORITY_PATTERN.search(task_desc[:50])
+    if m:
+        label = m.group(1).upper()
+        cleaned = task_desc[:m.start()] + task_desc[m.end():]
+        if label in ("HIGH", "CRITICAL", "URGENT"):
+            return cleaned.strip(), "high"
+        if label == "LOW":
+            return cleaned.strip(), "low"
+    return task_desc, "medium"
+
+
 def handle_delegations(
     source_agent: str,
     response: str,
@@ -131,6 +154,7 @@ def handle_delegations(
     """Parse delegations and add them to the task board.
 
     Deduplicates against existing open tasks by checking title similarity.
+    Extracts priority from task text (e.g. [HIGH]: ...).
 
     Args:
         source_agent: Name of the agent whose response we're parsing.
@@ -163,8 +187,9 @@ def handle_delegations(
             logger.debug(f"Skipping already-on-board task: {task_desc[:60]}")
             continue
         seen.add(dedup_key)
-        logger.info(f"Delegation: {source_agent} -> {target_agent}: {task_desc[:80]}")
-        add_task_fn(task_desc, assigned_to=target_agent, created_by=source_agent)
+        cleaned_desc, priority = _extract_priority(task_desc)
+        logger.info(f"Delegation: {source_agent} -> {target_agent} [{priority}]: {cleaned_desc[:80]}")
+        add_task_fn(cleaned_desc, assigned_to=target_agent, created_by=source_agent, priority=priority)
 
     # Find delegations to agents that don't exist — these are hire requests
     unknown = parse_unknown_delegations(response, agent_names)
