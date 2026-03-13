@@ -864,6 +864,28 @@ class SetupWizard:
     def _register_handlers(self):
         """Wire up Slack event and action handlers."""
 
+        @self.app.event("app_home_opened")
+        def handle_app_home_opened(event, client):
+            """Show a simple home tab when user opens the app."""
+            try:
+                client.views_publish(
+                    user_id=event["user"],
+                    view={
+                        "type": "home",
+                        "blocks": [
+                            {
+                                "type": "section",
+                                "text": {
+                                    "type": "mrkdwn",
+                                    "text": "*Welcome to Crewmatic* :rocket:\n\nYour autonomous AI team is setting up. Send me a DM to get started!",
+                                },
+                            },
+                        ],
+                    },
+                )
+            except Exception as exc:
+                logger.warning(f"Failed to publish home tab: {exc}")
+
         @self.app.event("app_mention")
         def handle_mention(event, say):
             import re
