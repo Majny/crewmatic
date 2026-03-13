@@ -3,6 +3,7 @@
 import enum
 import logging
 import os
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -380,12 +381,16 @@ class SetupWizard:
             key = integration["key"]
             option = {
                 "text": {"type": "plain_text", "text": key},
-                "description": {"type": "plain_text", "text": integration.get("description", "")},
+                "description": {"type": "plain_text", "text": integration.get("description", "")[:75]},
                 "value": key,
             }
             options.append(option)
             if key in suggested:
                 initial_options.append(option)
+
+        # Slack limits checkbox groups to 10 options — split into chunks
+        CHUNK_SIZE = 10
+        option_chunks = [options[i:i + CHUNK_SIZE] for i in range(0, len(options), CHUNK_SIZE)]
 
         blocks: list[dict] = [
             {
@@ -402,35 +407,39 @@ class SetupWizard:
                     ),
                 },
             },
-            {
+        ]
+
+        for idx, chunk in enumerate(option_chunks):
+            chunk_initial = [o for o in chunk if o in initial_options]
+            blocks.append({
                 "type": "actions",
-                "block_id": "integration_checkboxes_block",
+                "block_id": f"integration_checkboxes_block_{idx}",
                 "elements": [
                     {
                         "type": "checkboxes",
-                        "action_id": "integration_checkboxes",
-                        "options": options,
-                        **({"initial_options": initial_options} if initial_options else {}),
+                        "action_id": f"integration_checkboxes_{idx}",
+                        "options": chunk,
+                        **({"initial_options": chunk_initial} if chunk_initial else {}),
                     },
                 ],
-            },
-            {
-                "type": "actions",
-                "elements": [
-                    {
-                        "type": "button",
-                        "text": {"type": "plain_text", "text": "Continue"},
-                        "style": "primary",
-                        "action_id": "setup_integrations_confirm",
-                    },
-                    {
-                        "type": "button",
-                        "text": {"type": "plain_text", "text": "Skip"},
-                        "action_id": "setup_skip_integrations",
-                    },
-                ],
-            },
-        ]
+            })
+
+        blocks.append({
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "Continue"},
+                    "style": "primary",
+                    "action_id": "setup_integrations_confirm",
+                },
+                {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "Skip"},
+                    "action_id": "setup_skip_integrations",
+                },
+            ],
+        })
 
         say(
             text="*Step 3/5 — Choose integrations*\n\nSelect the integrations you want your AI team to use:",
@@ -965,7 +974,7 @@ class SetupWizard:
 
             self._handle_restart(session, channel_id, thread_ts, _say)
 
-        @self.app.action("integration_checkboxes")
+        @self.app.action(re.compile(r"^integration_checkboxes_\d+$"))
         def handle_integration_checkboxes(ack, body):
             # Just acknowledge — selections are read on confirm
             ack()
@@ -981,13 +990,15 @@ class SetupWizard:
             if not session or session.state != SetupState.AWAITING_INTEGRATIONS:
                 return
 
-            # Read selected checkboxes from the block state
+            # Read selected checkboxes from all checkbox blocks
             selected = []
             block_state = body.get("state", {}).get("values", {})
-            cb_block = block_state.get("integration_checkboxes_block", {})
-            cb_action = cb_block.get("integration_checkboxes", {})
-            for opt in cb_action.get("selected_options", []):
-                selected.append(opt["value"])
+            for block_id, block_data in block_state.items():
+                if not block_id.startswith("integration_checkboxes_block_"):
+                    continue
+                for action_id, action_data in block_data.items():
+                    for opt in action_data.get("selected_options", []):
+                        selected.append(opt["value"])
 
             session.selected_integrations = selected
 
