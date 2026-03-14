@@ -75,11 +75,13 @@ You: "Build a SaaS for restaurant analytics"
 ```
 
 1. **CEO** receives your business plan, breaks it into tasks, delegates
-2. **CTO** hires developers and testers as needed, manages code quality
-3. **CMO** researches markets, creates content using Canva/Gamma/Figma
-4. **Workers** claim tasks, execute via Claude CLI, report results
-5. **Auto-hiring** — agents create new roles on the fly when workload demands it
-6. **Self-correction** — workers escalate blockers, managers reassess strategy
+2. **CTO** is a tech lead — scaffolds the project, hires @backend_dev, @frontend_dev, @tester, @devops
+3. **CMO** is a growth lead — hires @content_writer, @designer, @seo_specialist
+4. **Workers** claim tasks, write real code/content, self-verify before reporting
+5. **Auto-testing** — after code tasks, test tasks are auto-created
+6. **Manager review** — CTO/CMO approve or reject worker output with feedback
+7. **Auto-hiring** — agents create new roles on the fly when workload demands it
+8. **Self-correction** — workers escalate blockers, managers reassess strategy
 
 ### Dynamic team
 
@@ -101,6 +103,7 @@ No manual configuration needed — the team grows organically.
 |---------|-------------|
 | `tasks` | Show task board |
 | `team` | Show current team structure |
+| `files` | Show all workspace files and artifacts |
 | `costs` | Show cost tracker (per agent, per day) |
 | `report` | Run progress report |
 | `standup` | Run team standup |
@@ -109,6 +112,7 @@ No manual configuration needed — the team grows organically.
 | `start <project>` | Activate a project |
 | `stop` | Stop current project |
 | `status` | Project status |
+| `integrations` | Manage integrations |
 | `help` | List all commands |
 
 ## CLI commands
@@ -198,7 +202,15 @@ agents:
 projects:
   my-app:
     name: "My App"
-    codebase: "/path/to/repo"
+    codebase: "."  # agents write code here (relative to crew.yaml)
+
+# Optional: custom MCP servers for any API
+# mcp_servers:
+#   my-api:
+#     command: "npx"
+#     args: ["-y", "@my-org/my-mcp-server"]
+#     env:
+#       API_KEY: "${MY_API_KEY}"
 ```
 
 ### Agent roles
@@ -242,11 +254,14 @@ crewmatic/
 
 ## Safety
 
-- **Circuit breaker** — agents auto-pause after consecutive failures
+- **Circuit breaker** — agents auto-pause after consecutive failures (auto-reset after 10 min)
 - **Manager review gate** — worker output verified before marking complete
-- **Escalation** — workers flag blockers instead of looping
-- **Cost tracking** — per-agent, per-day spend estimates in reports
-- **Loop prevention** — cooldowns between bot messages
+- **Auto-test loop** — code tasks automatically get a follow-up test task
+- **Escalation** — workers flag blockers, fix tasks auto-created (not dead-end)
+- **Fuzzy dedup** — prevents CEO from re-delegating the same task with slightly different wording
+- **Stuck task backoff** — exponential backoff prevents planning death loops
+- **Event deduplication** — Slack at-least-once delivery doesn't cause duplicate agent calls
+- **Subprocess timeout + kill** — Claude CLI processes killed on timeout (no zombies)
 
 When agents have `tools` configured, Crewmatic passes `--dangerously-skip-permissions` to Claude CLI. Set `skip_permissions: false` in settings to disable.
 
