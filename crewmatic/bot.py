@@ -447,21 +447,27 @@ class CrewmaticBot:
                 f"- delegates_to should be empty (worker)\n"
             )
 
+            # Track agents before hire to detect the actual name LLM chose
+            agents_before = set(self.agents.keys())
             self._handle_add_agent(request, manager.channel)
+            agents_after = set(self.agents.keys())
+            actually_created = agents_after - agents_before
 
-            # Now add the first task for the newly created agent
-            if new_agent_name in self.agents:
+            # Use the actual agent name (LLM might generate "backend_developer" instead of "backend_dev")
+            actual_name = next(iter(actually_created), None) or new_agent_name
+
+            if actual_name in self.agents:
                 self.task_manager.add_task(
                     first_task,
-                    assigned_to=new_agent_name,
+                    assigned_to=actual_name,
                     created_by=hiring_manager,
                 )
-                logger.info(f"Auto-hire complete: {new_agent_name} created with first task")
+                logger.info(f"Auto-hire complete: {actual_name} created with first task")
 
                 # Update the hiring manager's delegates_to
-                if new_agent_name not in manager.delegates_to:
-                    manager.delegates_to.append(new_agent_name)
-                    logger.info(f"Added {new_agent_name} to {hiring_manager}'s delegates_to")
+                if actual_name not in manager.delegates_to:
+                    manager.delegates_to.append(actual_name)
+                    logger.info(f"Added {actual_name} to {hiring_manager}'s delegates_to")
 
         except Exception as e:
             logger.error(f"Auto-hire failed for {new_agent_name}: {e}")

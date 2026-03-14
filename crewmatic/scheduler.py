@@ -328,8 +328,28 @@ class Scheduler:
                             agent_name=agent_name,
                         )
                         logger.info(f"[{agent_name.upper()}] Escalated task #{task_id} to {reviewer}")
-                        self.task_manager.reset_task(task_id)
-                        escalated_ids.add(task_id)
+
+                        # Cancel the failed task and create a fix task for the
+                        # original author (or the agent's created_by).
+                        # This avoids the dead-end where nobody acts on the escalation.
+                        escalation_text = response.strip()
+                        fix_target = task.get("created_by", agent_name)
+                        if fix_target == agent_name:
+                            # If the agent escalated their own task, assign fix to manager
+                            fix_target = reviewer
+                        fix_desc = (
+                            f"Fix issue from task #{task_id}: {task_title}\n\n"
+                            f"Escalation reason:\n{escalation_text[:500]}\n\n"
+                            f"Read the code, fix the problem, and verify it works."
+                        )
+                        self.task_manager.cancel_task(task_id, reason=f"Escalated by {agent_name}")
+                        self.task_manager.add_task(
+                            fix_desc,
+                            assigned_to=fix_target,
+                            created_by=agent_name,
+                            priority="high",
+                        )
+                        logger.info(f"Created fix task for escalation #{task_id} → {fix_target}")
                         continue
 
                 # Verify result if agent reports to a manager
@@ -457,16 +477,32 @@ class Scheduler:
 
     @staticmethod
     def _looks_like_code_task(title: str, response: str) -> bool:
-        """Heuristic: did this task produce code?"""
-        code_signals = (
-            "created file", "wrote file", "created src/", "created app/",
-            "package.json", "requirements.txt", "setup.py", "pyproject.toml",
-            ".py", ".ts", ".js", ".tsx", ".jsx", ".go", ".rs",
-            "git commit", "git push", "npm install", "pip install",
-            "mkdir", "def ", "class ", "function ", "import ",
-        )
+        """Heuristic: did this task produce code that should be tested?
+
+        Requires at least one strong signal (file creation) plus one
+        code indicator. Avoids false positives from research or docs
+        that merely mention code concepts.
+        """
         combined = (title + " " + response).lower()
-        return any(signal in combined for signal in code_signals)
+
+        # Strong signals — agent actually created/modified files
+        file_signals = (
+            "created file", "wrote file", "created src/", "created app/",
+            "write tool", "edit tool", "file_path",
+            "git commit", "git add", "npm init", "pip install",
+            "mkdir ", "touch ",
+        )
+        has_file_signal = any(s in combined for s in file_signals)
+        if not has_file_signal:
+            return False
+
+        # Code indicators — confirms it's actual code, not just config
+        code_indicators = (
+            ".py", ".ts", ".js", ".tsx", ".jsx", ".go", ".rs",
+            "def ", "class ", "function ", "import ", "from ",
+            "package.json", "requirements.txt", "pyproject.toml",
+        )
+        return any(s in combined for s in code_indicators)
 
     def _auto_create_test_task(
         self, agent_name: str, task_id: int, task_title: str, response: str,
