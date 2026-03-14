@@ -66,19 +66,11 @@ class ClaudeRunner:
         if env_overrides:
             env.update(env_overrides)
 
-        # Guard against ARG_MAX — Linux limit is ~2MB for total argv
-        # If prompt is too large, truncate with a warning
-        max_prompt_bytes = 1_500_000  # ~1.5MB, safe under 2MB ARG_MAX
-        if len(user_message.encode("utf-8")) > max_prompt_bytes:
-            logger.warning(
-                f"Prompt too large ({len(user_message)} chars), truncating to fit ARG_MAX"
-            )
-            user_message = user_message[:max_prompt_bytes // 2] + \
-                "\n\n... [CONTEXT TRUNCATED — prompt exceeded size limit]"
-
+        # Pass prompt via stdin to avoid ARG_MAX limits and CLI option
+        # parsing issues (prompts starting with --- look like flags)
         cmd = [
             "claude",
-            "-p", user_message,
+            "-p", "-",  # Read prompt from stdin
             "--system-prompt", system_prompt,
             "--model", model,
             "--no-session-persistence",
@@ -99,6 +91,7 @@ class ClaudeRunner:
             with self._semaphore:
                 proc = subprocess.Popen(
                     cmd,
+                    stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
@@ -106,7 +99,9 @@ class ClaudeRunner:
                     env=env,
                 )
                 try:
-                    stdout, stderr = proc.communicate(timeout=self.timeout)
+                    stdout, stderr = proc.communicate(
+                        input=user_message, timeout=self.timeout,
+                    )
                 except subprocess.TimeoutExpired:
                     proc.kill()
                     proc.wait(timeout=10)

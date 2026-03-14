@@ -184,11 +184,11 @@ def build_prompt(
 
     # Project context
     if "project_context" in receives_context and project_context:
-        prompt = f"--- ACTIVE PROJECT ---\n{project_context}\n--- END PROJECT ---\n\n{prompt}"
+        prompt = f"=== ACTIVE PROJECT ===\n{project_context}\n=== END PROJECT ===\n\n{prompt}"
 
     # Saved working context (for leader resuming work)
     if "saved_context" in receives_context and saved_context:
-        prompt += f"\n\n--- YOUR SAVED CONTEXT (from last session) ---\n{saved_context}\n--- END SAVED CONTEXT ---"
+        prompt += f"\n\n=== YOUR SAVED CONTEXT (from last session) ---\n{saved_context}\n=== END SAVED CONTEXT ==="
 
     # Business context (local files + Slack #context channel)
     if "business_context" in receives_context:
@@ -205,7 +205,7 @@ def build_prompt(
         if local_ctx:
             parts.append(local_ctx)
         if parts:
-            prompt += f"\n\n--- BUSINESS CONTEXT ---\n" + "\n\n".join(parts) + "\n--- END BUSINESS CONTEXT ---"
+            prompt += f"\n\n=== BUSINESS CONTEXT ===\n" + "\n\n".join(parts) + "\n=== END BUSINESS CONTEXT ==="
 
     # Team channel updates (cache key includes agent to avoid cross-agent stale data)
     if "team_channels" in receives_context and client:
@@ -217,16 +217,16 @@ def build_prompt(
             ttl=cache_ttl,
         )
         if team_updates:
-            prompt += f"\n\n--- TEAM CHANNEL UPDATES ---\n{team_updates}\n--- END TEAM UPDATES ---"
+            prompt += f"\n\n=== TEAM CHANNEL UPDATES ===\n{team_updates}\n=== END TEAM UPDATES ==="
 
     # Agent memory
     memory = load_agent_memory(agent_name, memory_dir)
     if memory:
-        prompt += f"\n\n--- YOUR MEMORY (from previous sessions) ---\n{memory}\n--- END MEMORY ---"
+        prompt += f"\n\n=== YOUR MEMORY (from previous sessions) ---\n{memory}\n=== END MEMORY ==="
         prompt += f"\n\nIMPORTANT: After completing your task, UPDATE your memory file at {memory_dir}/{agent_name}.md with what you learned, decided, or completed. Keep it concise."
 
     # Task board
     if task_summary and task_summary not in ("No tasks.", "No open tasks."):
-        prompt += f"\n\n--- Current task board ---\n{task_summary}"
+        prompt += f"\n\n=== Current task board ===\n{task_summary}"
 
     return prompt
