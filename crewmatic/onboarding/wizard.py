@@ -753,7 +753,14 @@ class SetupWizard:
         for name, agent_def in agents.items():
             role = agent_def.get("role", "worker")
             channel = agent_def.get("channel", name)
-            prompt_preview = agent_def.get("system_prompt", "")[:120].replace("\n", " ")
+            # Show first meaningful line of system prompt (skip generic rules)
+            raw_prompt = agent_def.get("system_prompt", "")
+            prompt_lines = [
+                line.strip() for line in raw_prompt.split("\n")
+                if line.strip() and not line.strip().startswith("Always start your messages")
+                and not line.strip().startswith("When you have important")
+            ]
+            prompt_preview = (prompt_lines[0] if prompt_lines else raw_prompt[:120])[:120]
             model = agent_def.get("model", "sonnet")
 
             blocks.append({

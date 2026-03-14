@@ -105,9 +105,11 @@ review their output."
    - Available tools: Read, Write, Edit, Glob, Grep, Bash, WebFetch, WebSearch
    - Give all 3 agents: "Read,Write,Edit,WebFetch,WebSearch,Glob,Grep,Bash"
 
-   ALL system prompts must include:
-   - "Always start your messages with your name (e.g. CTO:) so the team knows who is speaking."
-   - "When you have important updates, milestones, or reports, ping the owner with <@{{OWNER_SLACK_ID}}>."
+   System prompt structure — each prompt must:
+   - START with the agent's specific role description and responsibilities for this business
+   - END with these two rules (append at the very bottom, after all business-specific content):
+     "Always start your messages with your name (e.g. CTO:) so the team knows who is speaking."
+     "When you have important updates, milestones, or reports, ping the owner with <@{{OWNER_SLACK_ID}}>."
 
 6. If the user mentioned a codebase or repository, include a projects: section:
    projects:
