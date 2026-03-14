@@ -399,10 +399,18 @@ class Scheduler:
                         f"Completed task #{task_id}: {task_title}\n\nResult: {summary}",
                     )
                 else:
-                    # Rejected — cancel original to avoid duplicates.
-                    # The reviewer's delegation (from _verify_task_result) creates the fix task.
-                    self.task_manager.cancel_task(task_id, reason=f"Rejected by {reviewer}")
-                    logger.info(f"[{agent_name.upper()}] Task #{task_id} rejected by {reviewer}, cancelled")
+                    # Rejected — check if reviewer re-delegated a fix task.
+                    # If yes, cancel the original (new task replaces it).
+                    # If no, the task was already reset with feedback inside
+                    # _verify_task_result — leave it so the worker can retry.
+                    current = self.task_manager.get_task_by_id(task_id)
+                    if current and current.get("status") == "todo":
+                        # Task was reset with feedback — worker will retry
+                        logger.info(f"[{agent_name.upper()}] Task #{task_id} rejected by {reviewer}, reset for retry")
+                    else:
+                        # Reviewer re-delegated → cancel original
+                        self.task_manager.cancel_task(task_id, reason=f"Rejected by {reviewer}")
+                        logger.info(f"[{agent_name.upper()}] Task #{task_id} rejected by {reviewer}, replaced by new task")
                 time.sleep(10)
 
             except Exception as e:

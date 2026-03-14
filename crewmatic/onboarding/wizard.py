@@ -968,16 +968,23 @@ class SetupWizard:
         # 3b. Send getting-started guide as a DM to the owner
         self._send_getting_started_dm()
 
-        # 4. Trigger on_complete callback (e.g. auto-start the full bot)
-        if self.on_complete:
-            def _delayed_complete():
-                time.sleep(5)
-                try:
-                    self.on_complete(config_path, session.business_description)
-                except Exception as exc:
-                    logger.error(f"on_complete callback failed: {exc}")
+        # 4. Store completion data and stop the wizard's event loop.
+        # This unblocks start() on the main thread, which then calls on_complete.
+        # Two SocketModeHandlers on the same app token cause event delivery conflicts,
+        # so the wizard must stop before the bot starts.
+        self._complete_config_path = config_path
+        self._complete_business_desc = session.business_description
 
-            threading.Thread(target=_delayed_complete, daemon=True, name="setup-complete").start()
+        if hasattr(self, "_handler"):
+            # Close from a thread to avoid deadlock — close() unblocks start()
+            def _shutdown_wizard():
+                time.sleep(2)
+                try:
+                    self._handler.close()
+                    logger.info("Wizard SocketModeHandler closed — handing off to bot")
+                except Exception as exc:
+                    logger.warning(f"Failed to close wizard handler: {exc}")
+            threading.Thread(target=_shutdown_wizard, daemon=True).start()
 
     def _send_getting_started_dm(self):
         """Send a getting-started guide as a DM to the owner after setup completes."""
@@ -1246,5 +1253,13 @@ class SetupWizard:
                 logger.error(f"Failed to send welcome DM: {exc}")
 
         logger.info("Setup wizard started — waiting for owner input")
-        handler = SocketModeHandler(self.app, self.app_token)
-        handler.start()
+        self._handler = SocketModeHandler(self.app, self.app_token)
+        self._complete_config_path = None
+        self._complete_business_desc = ""
+        self._handler.start()  # Blocks until handler.close() is called
+
+        # After wizard closes, hand off to bot on the main thread
+        if self.on_complete and self._complete_config_path:
+            logger.info("Wizard done — starting bot on main thread")
+            time.sleep(2)  # Let the socket close cleanly
+            self.on_complete(self._complete_config_path, self._complete_business_desc)
