@@ -629,7 +629,6 @@ class SetupWizard:
 
         # Gmail needs two credentials — address + password
         if current["key"] == "gmail" and "GMAIL_APP_PASSWORD" not in session.collected_credentials:
-            # First input is the app password
             session.collected_credentials["GMAIL_APP_PASSWORD"] = token
             say(
                 text="Got it. Now *paste your Gmail address* (e.g. you@gmail.com):",
@@ -640,8 +639,25 @@ class SetupWizard:
         elif current["key"] == "gmail" and "GMAIL_ADDRESS" not in session.collected_credentials:
             session.collected_credentials["GMAIL_ADDRESS"] = token
         else:
-            # Single-token integration — assign to first env var
-            session.collected_credentials[env_vars[0]] = token
+            # Find the next uncollected env var for this integration
+            target_var = None
+            for var in env_vars:
+                if var not in session.collected_credentials:
+                    target_var = var
+                    break
+            if target_var:
+                session.collected_credentials[target_var] = token
+
+            # If there are more env vars to collect, ask for the next one
+            remaining = [v for v in env_vars if v not in session.collected_credentials]
+            if remaining:
+                next_var = remaining[0]
+                say(
+                    text=f"Got it. Now paste your *{next_var}*:",
+                    channel=channel_id,
+                    thread_ts=thread_ts,
+                )
+                return
 
         # Try to delete the message with the token for security
         delete_ts = message_ts or thread_ts

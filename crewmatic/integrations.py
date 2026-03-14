@@ -43,7 +43,7 @@ CATALOG = {
             "Use `git clone/commit/push` for code. GITHUB_TOKEN is set in your environment.\n"
             "Always use feature branches, never push directly to main."
         ),
-        "auto_roles": [],
+        "auto_roles": ["manager"],
         "keywords": ["github", "git", "repository", "pull request", "issues", "code review", "repo"],
     },
     "linear": {
@@ -97,7 +97,7 @@ CATALOG = {
             "You have Vercel access. Use the `vercel` CLI or REST API:\n"
             "`curl https://api.vercel.com/v9/projects -H 'Authorization: Bearer $VERCEL_TOKEN'`"
         ),
-        "auto_roles": [],
+        "auto_roles": ["manager"],
         "keywords": ["vercel", "deploy", "hosting", "serverless", "next.js"],
     },
 
@@ -128,7 +128,7 @@ CATALOG = {
     "slack-extended": {
         "name": "Slack (extended)",
         "description": "Search messages, advanced channel management",
-        "env_vars": ["SLACK_BOT_TOKEN"],
+        "env_vars": [],
         "setup_message": (
             "*Slack extended access*\n\n"
             "This uses the same bot token — no extra setup needed!\n"
@@ -166,7 +166,11 @@ CATALOG = {
             "Google Drive works automatically via Claude.ai — no credentials needed!\n"
             "Type `skip` to continue."
         ),
-        "agent_instructions": "You have Google Drive access via the API.",
+        "agent_instructions": (
+            "You have Google Drive access. Note: no direct API tools available.\n"
+            "Use WebFetch to interact with shared Google Docs/Sheets links, or create "
+            "local files and document them for the team."
+        ),
         "auto_roles": [],
         "keywords": ["drive", "google drive", "files", "documents", "sheets", "spreadsheet"],
     },
@@ -246,7 +250,7 @@ CATALOG = {
             "Use generate_diagram for creating FigJam diagrams."
         ),
         "claude_ai_tools": ["mcp__claude_ai_Figma__*"],
-        "auto_roles": [],
+        "auto_roles": ["manager", "worker"],
         "keywords": ["figma", "design", "ui design", "mockup", "prototype", "wireframe"],
     },
     "canva": {
@@ -263,7 +267,7 @@ CATALOG = {
             "Use generate-design to create new designs, export-design to export them."
         ),
         "claude_ai_tools": ["mcp__claude_ai_Canva__*"],
-        "auto_roles": [],
+        "auto_roles": ["manager", "worker"],
         "keywords": ["canva", "design", "presentation", "graphics", "social media", "logo"],
     },
 
@@ -283,7 +287,7 @@ CATALOG = {
         ),
         "auto_roles": [],
         "keywords": ["postgres", "database", "sql", "db", "query", "postgresql"],
-        "mcp": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-postgres"]},
+        "mcp": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-postgres", "${DATABASE_URL}"]},
     },
     "supabase": {
         "name": "Supabase",
@@ -455,7 +459,7 @@ CATALOG = {
             "Use the generate tool to create content."
         ),
         "claude_ai_tools": ["mcp__claude_ai_Gamma__*"],
-        "auto_roles": [],
+        "auto_roles": ["manager", "worker"],
         "keywords": ["gamma", "presentation", "slides", "pitch deck", "deck"],
     },
     "miro": {
@@ -520,9 +524,19 @@ def build_mcp_config_for_integrations(integration_names: list[str]) -> dict:
         mcp = integration.get("mcp")
         if not mcp:
             continue  # CLI-only integration, no MCP server
+        # Resolve ${ENV_VAR} placeholders in args
+        resolved_args = []
+        for arg in mcp["args"]:
+            if arg.startswith("${") and arg.endswith("}"):
+                var_name = arg[2:-1]
+                val = os.environ.get(var_name, "")
+                if val:
+                    resolved_args.append(val)
+            else:
+                resolved_args.append(arg)
         server = {
             "command": mcp["command"],
-            "args": mcp["args"],
+            "args": resolved_args,
         }
         env = {}
         for var in integration.get("env_vars", []):
