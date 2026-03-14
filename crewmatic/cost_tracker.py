@@ -41,9 +41,11 @@ class CostTracker:
 
     def _save(self):
         os.makedirs(self.data_dir, exist_ok=True)
+        tmp_file = self.stats_file + ".tmp"
         try:
-            with open(self.stats_file, "w") as f:
+            with open(tmp_file, "w") as f:
                 json.dump(self._stats, f, indent=2)
+            os.replace(tmp_file, self.stats_file)
         except OSError as e:
             logger.error(f"Failed to save cost stats: {e}")
 

@@ -97,10 +97,8 @@ class CrewmaticBot:
         self.channel_name_to_id: dict[str, str] = {}
         self.channel_id_to_name: dict[str, str] = {}
 
-        # Loop prevention
-        self.recent_bot_messages: dict[str, float] = {}
-        self._bot_msg_lock = threading.Lock()
-        self.loop_cooldown = self.settings.get("loop_cooldown", 30)
+        # Event deduplication
+        self._seen_event_ts: dict[str, bool] = {}
 
         # Owner config
         owner = self.config.get("owner", {})
@@ -211,8 +209,6 @@ class CrewmaticBot:
         try:
             client = self.get_agent_client(agent_name)
             client.chat_postMessage(**kwargs)
-            with self._bot_msg_lock:
-                self.recent_bot_messages[channel_id] = time.time()
         except Exception as e:
             logger.error(f"Failed to post to #{channel_name}: {e}")
 
@@ -762,6 +758,18 @@ class CrewmaticBot:
 
     def _route_message(self, event, is_mention: bool = False):
         """Shared message routing logic for mentions and direct messages."""
+        # Deduplicate events — Slack can deliver the same event twice
+        event_ts = event.get("ts")
+        if event_ts:
+            if event_ts in self._seen_event_ts:
+                return
+            self._seen_event_ts[event_ts] = True
+            # Bound the dedup cache to the last ~100 events
+            if len(self._seen_event_ts) > 100:
+                excess = len(self._seen_event_ts) - 100
+                for key in list(self._seen_event_ts)[:excess]:
+                    del self._seen_event_ts[key]
+
         if not is_mention:
             if event.get("subtype"):
                 return

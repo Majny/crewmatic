@@ -252,6 +252,7 @@ class Scheduler:
         poll_interval = self.settings.get("worker_poll_interval", 60)
         time.sleep(30)  # Wait for Slack connection
         logger.info(f"[{agent_name.upper()}] Worker loop started")
+        escalated_ids: set[int] = set()
 
         while True:
             try:
@@ -269,6 +270,10 @@ class Scheduler:
                     continue
 
                 task_id = task["id"]
+                if task_id in escalated_ids:
+                    self.task_manager.reset_task(task_id)
+                    time.sleep(poll_interval)
+                    continue
                 task_title = task["title"]
                 agent = self.agents[agent_name]
                 logger.info(f"[{agent_name.upper()}] Executing task #{task_id}: {task_title[:80]}")
@@ -310,6 +315,7 @@ class Scheduler:
                         )
                         logger.info(f"[{agent_name.upper()}] Escalated task #{task_id} to {reviewer}")
                         self.task_manager.reset_task(task_id)
+                        escalated_ids.add(task_id)
                         continue
 
                 # Verify result if agent reports to a manager
@@ -334,6 +340,7 @@ class Scheduler:
                         agent_name=agent_name,
                     )
                     logger.info(f"[{agent_name.upper()}] Completed task #{task_id}")
+                    escalated_ids.clear()
                     self.handle_delegations(agent_name, response)
 
                     # Ping owner for high-priority completions

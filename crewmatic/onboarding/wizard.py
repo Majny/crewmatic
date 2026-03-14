@@ -628,7 +628,7 @@ class SetupWizard:
             return
 
         # Gmail needs two credentials — address + password
-        if current["key"] == "gmail" and "GMAIL_ADDRESS" not in session.collected_credentials:
+        if current["key"] == "gmail" and "GMAIL_APP_PASSWORD" not in session.collected_credentials:
             # First input is the app password
             session.collected_credentials["GMAIL_APP_PASSWORD"] = token
             say(
