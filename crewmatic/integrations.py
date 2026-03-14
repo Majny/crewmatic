@@ -199,7 +199,7 @@ CATALOG = {
             "notion-fetch, notion-create-database, notion-create-comment"
         ),
         "claude_ai_tools": ["mcp__claude_ai_Notion__*"],
-        "auto_roles": ["manager"],
+        "auto_roles": ["leader", "manager"],
         "keywords": ["notion", "wiki", "documentation", "knowledge base", "notes"],
     },
     "confluence": {
