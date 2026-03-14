@@ -624,7 +624,7 @@ class SetupWizard:
             for var in env_vars:
                 session.collected_credentials.pop(var, None)
             say(
-                text=f"Skipping *{current['name']}* — you can set it up later in `.env`.",
+                text=f"Skipping *{current['name']}* — no worries, you can connect it later by running `crewmatic init` or typing `integrations` in Slack.",
                 channel=channel_id,
                 thread_ts=thread_ts,
             )
