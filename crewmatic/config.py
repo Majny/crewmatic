@@ -17,7 +17,7 @@ DEFAULT_SETTINGS = {
     "planning_threshold": 3,
     "report_hours": [9, 16, 22],
     "cache_ttl": 300,
-    "claude_timeout": 600,
+    "claude_timeout": 900,
     "slack_max_length": 39000,
     "loop_cooldown": 30,
     "stuck_timeout_minutes": 10,

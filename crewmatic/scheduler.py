@@ -93,6 +93,22 @@ Do the actual work — produce REAL OUTPUT, not descriptions of what you would d
 - If it involves content: write the actual content to a file (blog post, docs, email draft).
 - If it involves architecture: create the actual project structure, config files, and scaffolding.
 
+WORK DECOMPOSITION — if this task has multiple parts:
+- If you are a manager/lead: DON'T do everything yourself in one giant session.
+  Break it into sub-tasks and delegate to specialists.
+  Example: instead of building entire frontend + backend + CI yourself, delegate:
+    @backend_dev: Set up FastAPI server with auth and Loop CRUD endpoints
+    @frontend_dev: Set up React+Vite client with routing and API client
+    @devops: Create docker-compose.yml and CI/CD pipeline
+  You scaffold the project structure and review their work.
+- If you are a worker: focus on YOUR piece. Do it well, commit it, report back.
+
+GIT DISCIPLINE — make small, focused commits:
+- Don't put everything in one giant commit
+- Each logical piece gets its own commit: "feat: add user model", "feat: add auth endpoints"
+- Use feature branches when appropriate: git checkout -b feature/loop-messages
+- Push regularly so others can see progress
+
 SELF-VERIFICATION — before reporting completion:
 - If you wrote code: run it with Bash and verify it actually works. Fix any errors.
   At minimum: check syntax (python -c "import module", npm run build, etc.)
