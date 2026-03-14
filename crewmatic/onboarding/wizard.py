@@ -1098,12 +1098,25 @@ class SetupWizard:
             ack()
             user_id = body["user"]["id"]
             channel_id = body["channel"]["id"]
-            # Use message ts as thread_ts for consistency
-            thread_ts = body.get("message", {}).get("ts", "")
+            message_ts = body.get("message", {}).get("ts", "")
+            thread_ts = message_ts
 
             session = self.sessions.get(user_id)
             if not session or session.state != SetupState.AWAITING_CONFIRMATION:
                 return
+
+            # Replace proposal card with confirmation (remove buttons)
+            try:
+                self.app.client.chat_update(
+                    channel=channel_id,
+                    ts=message_ts,
+                    text="Team approved! Setting up...",
+                    blocks=[
+                        {"type": "section", "text": {"type": "mrkdwn", "text": "*Step 4/5 — Team approved!* Setting up channels and config..."}},
+                    ],
+                )
+            except Exception:
+                pass
 
             def _say(**kwargs):
                 self.app.client.chat_postMessage(**kwargs)
@@ -1115,16 +1128,26 @@ class SetupWizard:
             ack()
             user_id = body["user"]["id"]
             channel_id = body["channel"]["id"]
-            thread_ts = body.get("message", {}).get("ts", "")
+            message_ts = body.get("message", {}).get("ts", "")
 
             session = self.sessions.get(user_id)
             if not session:
                 return
 
+            # Replace proposal card
+            try:
+                self.app.client.chat_update(
+                    channel=channel_id, ts=message_ts,
+                    text="Making changes...",
+                    blocks=[{"type": "section", "text": {"type": "mrkdwn", "text": "*Modifying team config...*"}}],
+                )
+            except Exception:
+                pass
+
             session.state = SetupState.AWAITING_MODIFICATION
             self.app.client.chat_postMessage(
                 channel=channel_id,
-                thread_ts=thread_ts,
+                thread_ts=message_ts,
                 text="Sure, what would you like to change? Describe the modification and I'll update the config.",
             )
 
