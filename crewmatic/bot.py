@@ -261,10 +261,32 @@ class CrewmaticBot:
         mcp_config = build_mcp_config_for_integrations(agent_integrations) if agent_integrations else {"mcpServers": {}}
 
         # Merge custom MCP servers from crew.yaml (global)
+        # Resolve ${ENV_VAR} placeholders in args and env values
         custom_servers = self.config.get("mcp_servers", {})
         for name, server in custom_servers.items():
             if name not in mcp_config["mcpServers"]:
-                mcp_config["mcpServers"][name] = server
+                resolved = dict(server)
+                if "args" in resolved:
+                    resolved_args = []
+                    for arg in resolved["args"]:
+                        if isinstance(arg, str) and arg.startswith("${") and arg.endswith("}"):
+                            val = os.environ.get(arg[2:-1], "")
+                            if val:
+                                resolved_args.append(val)
+                            else:
+                                logger.warning(f"Custom MCP '{name}': env var {arg[2:-1]} not set, skipping arg")
+                        else:
+                            resolved_args.append(arg)
+                    resolved["args"] = resolved_args
+                if "env" in resolved:
+                    resolved_env = {}
+                    for k, v in resolved["env"].items():
+                        if isinstance(v, str) and v.startswith("${") and v.endswith("}"):
+                            resolved_env[k] = os.environ.get(v[2:-1], v)
+                        else:
+                            resolved_env[k] = v
+                    resolved["env"] = resolved_env
+                mcp_config["mcpServers"][name] = resolved
 
         if not mcp_config.get("mcpServers"):
             return None
@@ -375,13 +397,13 @@ class CrewmaticBot:
                 )
 
         # Append Claude.ai MCP tool patterns to allowed_tools
-        allowed_tools = agent.tools
+        # Always ensure agents have tools — without --allowedTools the subprocess
+        # prompts interactively and hangs in headless mode
+        default_tools = "Read,Write,Edit,Bash,Glob,Grep,WebFetch,WebSearch"
+        allowed_tools = agent.tools or default_tools
         claude_ai_patterns = get_claude_ai_tools_for_integrations(agent_integrations)
-        if claude_ai_patterns and allowed_tools:
+        if claude_ai_patterns:
             allowed_tools = allowed_tools + "," + ",".join(claude_ai_patterns)
-        elif claude_ai_patterns:
-            default_tools = "Read,Write,Edit,Bash,Glob,Grep,WebFetch,WebSearch"
-            allowed_tools = default_tools + "," + ",".join(claude_ai_patterns)
 
         try:
             result = self.claude.call(
