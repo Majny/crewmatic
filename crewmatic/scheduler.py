@@ -425,6 +425,7 @@ class Scheduler:
         planning_cooldown = self.settings.get("planning_cooldown", 600)
         planning_threshold = self.settings.get("planning_threshold", 3)
         archive_interval = 86400
+        stuck_replan_count = 0
 
         time.sleep(45)
 
@@ -466,14 +467,29 @@ class Scheduler:
                 stuck_tasks = self.task_manager.get_stuck_tasks()
 
                 if stuck_tasks:
+                    # Avoid death loop: if we already replanned for stuck tasks
+                    # recently and they're STILL stuck, back off exponentially
+                    if stuck_replan_count >= 3:
+                        backoff = min(planning_interval * 2, 3600)
+                        logger.warning(
+                            f"{len(stuck_tasks)} stuck tasks still unresolved after "
+                            f"{stuck_replan_count} replans. Backing off {backoff}s. "
+                            f"Agents may not have worker loops or tasks may be unassignable."
+                        )
+                        time.sleep(backoff)
+                        stuck_replan_count += 1
+                        continue
                     logger.info(f"{len(stuck_tasks)} stuck tasks detected. Triggering replanning...")
                     self.run_planning()
+                    stuck_replan_count += 1
                     time.sleep(planning_cooldown)
                 elif open_tasks < planning_threshold:
+                    stuck_replan_count = 0  # Reset — board is healthy
                     logger.info(f"Task board low ({open_tasks} open). Planning more work...")
                     self.run_planning()
                     time.sleep(planning_cooldown)
                 else:
+                    stuck_replan_count = 0  # Reset — board is healthy
                     logger.info(f"Task board has {open_tasks} open tasks. Waiting...")
                     time.sleep(planning_interval)
             except Exception as e:

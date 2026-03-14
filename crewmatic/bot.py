@@ -1072,9 +1072,11 @@ class CrewmaticBot:
         threading.Thread(target=self.scheduler.planning_loop, daemon=True, name="planner").start()
         logger.info("Planning loop started")
 
-        # Start worker loops (only for workers — leaders/managers plan and review, not execute)
+        # Start worker loops for all non-leader agents.
+        # Managers also execute tasks directly (especially in small teams
+        # before they hire workers). Leaders only plan and review.
         for agent_name, agent in self.agents.items():
-            if agent.role == "worker":
+            if agent.role != "leader":
                 threading.Thread(
                     target=self.scheduler.agent_work_loop,
                     args=(agent_name,),
