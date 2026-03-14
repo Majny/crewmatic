@@ -667,6 +667,9 @@ class CrewmaticBot:
             self._show_integrations_manager(channel_name)
             return None  # Response sent via blocks
 
+        if text_lower == "files":
+            return self._list_workspace_files()
+
         if text_lower == "help":
             return (
                 "Available commands:\n"
@@ -685,6 +688,7 @@ class CrewmaticBot:
                 "  add agent / hire — Add a new agent\n"
                 "  team — Show current team structure\n"
                 "  costs — Show cost tracker\n"
+                "  files — Show all workspace files and artifacts\n"
                 "  integrations — Manage integrations\n"
                 "  help — Show this help"
             )
@@ -887,6 +891,64 @@ class CrewmaticBot:
                 )
             except Exception:
                 pass
+
+    def _list_workspace_files(self) -> str:
+        """List all files and artifacts in the workspace. Instant, no LLM call."""
+        config_dir = self.config.get("_config_dir", os.getcwd())
+        sections = []
+
+        # Config
+        crew_yaml = os.path.join(config_dir, "crew.yaml")
+        if os.path.exists(crew_yaml):
+            sections.append(f"*Config:*\n  crew.yaml")
+
+        # Data directory
+        data_dir = self.config["data_dir"]
+        if os.path.isdir(data_dir):
+            data_files = sorted(f for f in os.listdir(data_dir) if os.path.isfile(os.path.join(data_dir, f)))
+            if data_files:
+                lines = [f"  {f} ({os.path.getsize(os.path.join(data_dir, f)) // 1024}KB)" for f in data_files]
+                sections.append(f"*Data ({data_dir}):*\n" + "\n".join(lines))
+
+        # Memory directory
+        memory_dir = self.config["memory_dir"]
+        if os.path.isdir(memory_dir):
+            mem_files = sorted(f for f in os.listdir(memory_dir) if os.path.isfile(os.path.join(memory_dir, f)))
+            if mem_files:
+                lines = [f"  {f} ({os.path.getsize(os.path.join(memory_dir, f)) // 1024}KB)" for f in mem_files]
+                sections.append(f"*Agent memories ({memory_dir}):*\n" + "\n".join(lines))
+
+        # Context directory
+        context_dir = self.config["context_dir"]
+        if os.path.isdir(context_dir):
+            ctx_files = sorted(f for f in os.listdir(context_dir) if os.path.isfile(os.path.join(context_dir, f)))
+            if ctx_files:
+                lines = [f"  {f} ({os.path.getsize(os.path.join(context_dir, f)) // 1024}KB)" for f in ctx_files]
+                sections.append(f"*Context files ({context_dir}):*\n" + "\n".join(lines))
+
+        # Project codebase — scan for files created by agents (not hidden, not node_modules)
+        codebase = self.project_manager.get_project_codebase()
+        if codebase and os.path.isdir(codebase):
+            agent_files = []
+            skip_dirs = {".git", "node_modules", ".venv", "__pycache__", "data", "memory", "context"}
+            for root, dirs, files in os.walk(codebase):
+                dirs[:] = [d for d in dirs if d not in skip_dirs and not d.startswith(".")]
+                for f in files:
+                    if f in ("crew.yaml", ".env"):
+                        continue
+                    fpath = os.path.join(root, f)
+                    relpath = os.path.relpath(fpath, codebase)
+                    agent_files.append(relpath)
+                if len(agent_files) > 50:
+                    agent_files.append("... (truncated)")
+                    break
+            if agent_files:
+                sections.append(f"*Project files ({codebase}):*\n" + "\n".join(f"  {f}" for f in agent_files))
+
+        if not sections:
+            return "No files found in workspace."
+
+        return "Workspace files:\n\n" + "\n\n".join(sections)
 
     def _show_integrations_manager(self, channel_name: str):
         """Show Block Kit checkboxes to manage integrations."""
