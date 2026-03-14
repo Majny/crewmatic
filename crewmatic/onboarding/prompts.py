@@ -14,15 +14,27 @@ The user described their business and goals for an AI team:
 
 {business_description}
 
-Ask 2-3 concise follow-up questions to fill in the gaps before you can \
-design their AI crew. Focus on:
-- Tech stack and tools they use (languages, frameworks, hosting)
-- Specific roles or workflows they need automated
-- Existing codebases or repositories the team should work with
-- Preferred communication style (formal reports vs casual updates)
+Your job: figure out what's MISSING before you can design their AI crew. \
+Read the description carefully first — if it's a detailed business plan, \
+most of the info may already be there.
 
-Keep it conversational and friendly. Do NOT generate any YAML yet.
-Respond in the same language as the user.
+Information needed to generate a crew config:
+- What the business does and its current stage
+- Tech stack (languages, frameworks, hosting) — or if pre-product, what they plan to build with
+- Existing codebases or repositories (if any)
+- What the AI team should focus on first (top 1-2 priorities)
+- Communication preference (quick Slack updates vs structured reports)
+
+RULES:
+- Do NOT ask about information that's already clearly covered in the description above
+- If the description is comprehensive (e.g. a full business plan), you may only need \
+1 focused question — or even zero if everything is covered
+- If you have enough info to proceed, say so: "I have everything I need! Just one \
+quick question:" or "This is very detailed — I think I have everything. Ready to \
+set up your team? Just say *go* or tell me anything else you'd like to add."
+- Never ask more than 3 questions
+- Keep it conversational and friendly. Do NOT generate any YAML yet.
+- Respond in the same language as the user.
 
 IMPORTANT formatting rules (this will be posted to Slack):
 - Use *bold* (single asterisk), NOT **bold** (double asterisk)
