@@ -862,7 +862,18 @@ class SetupWizard:
             session.proposed_config, progress_callback=_progress,
         )
 
-        # 1b. Post pinned welcome messages in each created channel
+        # 1b. Invite owner to all created channels
+        owner_id = session.user_id
+        for ch_name, ch_id in created_channels.items():
+            try:
+                self.app.client.conversations_invite(channel=ch_id, users=owner_id)
+                logger.info(f"Invited owner to #{ch_name}")
+            except Exception as exc:
+                # already_in_channel or other non-critical error
+                if "already_in_channel" not in str(exc):
+                    logger.warning(f"Could not invite owner to #{ch_name}: {exc}")
+
+        # 1c. Post pinned welcome messages in each created channel
         agents = session.proposed_config.get("agents", {})
         for agent_name, agent_def in agents.items():
             channel_name = agent_def.get("channel", agent_name)
